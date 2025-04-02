@@ -37,6 +37,7 @@ const loginUser = async (req, res) => {
         const { name, email, password, confirmPassword, phone } = req.body
         var reg = /^\w+([-+.']\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/
         const isCheckEmail = reg.test(email)
+
         if (!name || !email || !password || !confirmPassword || !phone) {
             return res.status(200).json({
                 status: 'ERR',
@@ -55,7 +56,30 @@ const loginUser = async (req, res) => {
                 message: 'Confirm password must match the password'
             })
         }
+
         const response = await UserService.loginUser(req.body)
+        return res.status(200).json(response)
+    }catch(e){
+        return res.status(404).json({
+            message: e
+        })
+    }
+}
+
+const updateUser = async (req, res) => {
+    try{
+        const userId = req.params.id
+        const data = req.body
+
+        if(!userId)
+        {
+            return res.status(200).json({
+                status: 'ERR',
+                message: 'User ID is required'
+            })
+        }
+        console.log('id', userId)
+        const response = await UserService.updateUser(userId, data)
         return res.status(200).json(response)
     }catch(e){
         return res.status(404).json({
@@ -66,5 +90,6 @@ const loginUser = async (req, res) => {
 
 module.exports = {
     createUser,
-    loginUser
+    loginUser,
+    updateUser
 }

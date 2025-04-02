@@ -1,6 +1,6 @@
 const User = require("../models/UserModel")
 const bcrypt = require("bcrypt")
-const generalAccessToken = require("./JwtService")
+const { generalAccessToken, generalRefreshToken } = require("./JwtService")
 
 const createUser = (newUser) => {
     return new Promise(async (resolve, reject) => {
@@ -53,20 +53,22 @@ const loginUser = (userLogin) => {
                 })
             }
             const comparePassword = bcrypt.compareSync(password, checkUser.password)
-            console.log('comparePassword', comparePassword)
+            console.log('compare', comparePassword)
+
             if (!comparePassword)
             {
                 resolve({
                     status: 'OK',
                     message: 'The password is incorrect!'
                 })
-            }
+            }            
+
             const access_token = await generalAccessToken({
                 id: checkUser.id,
                 isAdmin: checkUser.isAdmin
             })
 
-            const refresh_token = await generalAccessToken.generalRefreshToken({
+            const refresh_token = await generalRefreshToken({
                 id: checkUser.id,
                 isAdmin: checkUser.isAdmin
             })
@@ -77,22 +79,36 @@ const loginUser = (userLogin) => {
                 access_token,
                 refresh_token
             })
-            
-            //if(checkUser)
-            /*const createdUser = await User.create({
-                name, 
-                email, 
-                password: hash, 
-                phone
+        }catch(e)
+        {
+            reject(e);
+        }
+    })
+}
+
+const updateUser = (id, data) => {
+    return new Promise(async (resolve, reject) => {
+        try{
+            const checkUser = await User.findOne({
+                _id: id
             })
-            if(createdUser)
+            console.log('checkUser', checkUser)
+            if(checkUser === null)
             {
                 resolve({
                     status: 'OK',
-                    message: 'Success',
-                    data: createdUser
+                    message: 'The user is not defined!'
                 })
-            }*/
+            }
+
+            const updatedUser = await User.findByIdAndUpdate(id, data, { new: true })
+            console.log('updatedUser', updateUser)
+
+            resolve({
+                status: 'OK',
+                message: 'Success',
+                data: updateUser
+            })
         }catch(e)
         {
             reject(e);
@@ -102,5 +118,6 @@ const loginUser = (userLogin) => {
 
 module.exports = {
     createUser,
-    loginUser
+    loginUser,
+    updateUser
 }
