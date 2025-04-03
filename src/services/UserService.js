@@ -132,7 +132,7 @@ const deleteUser = (id) => {
                 })
             }
 
-            //await User.findByIdAndDelete(id)
+            await User.findByIdAndDelete(id)
             resolve({
                 status: 'OK',
                 message: 'Delete user success',
@@ -144,7 +144,7 @@ const deleteUser = (id) => {
     })
 }
 
-const getAllUser = (id) => {
+const getAllUser = () => {
     return new Promise(async (resolve, reject) => {
         try{
             const allUser = await User.find()
