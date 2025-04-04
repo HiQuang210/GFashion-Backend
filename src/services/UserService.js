@@ -144,7 +144,7 @@ const deleteUser = (id) => {
     })
 }
 
-const getAllUser = (limitUser = 4, page = 0) => {
+const getAllUser = (limitUser, page) => {
     return new Promise(async (resolve, reject) => {
         try{
             const totalUser = await User.countDocuments()
