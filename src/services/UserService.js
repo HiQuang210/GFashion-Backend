@@ -38,53 +38,47 @@ const createUser = (newUser) => {
     })
 }
 
-const loginUser = (userLogin) => {
+const loginUser = ({ email, password }) => {
     return new Promise(async (resolve, reject) => {
-        const { name, email, password, confirmPassword, phone } = userLogin
-        try{
-            const checkUser = await User.findOne({
-                email: email
-            })
-            if(checkUser === null)
-            {
-                resolve({
-                    status: 'OK',
-                    message: 'The user is not defined!'
-                })
+        try {
+            const checkUser = await User.findOne({ email });
+            if (!checkUser) {
+                return resolve({
+                    status: 'ERR',
+                    message: 'User undefined'
+                });
             }
-            const comparePassword = bcrypt.compareSync(password, checkUser.password)
-            console.log('compare', comparePassword)
 
-            if (!comparePassword)
-            {
-                resolve({
-                    status: 'OK',
-                    message: 'The password is incorrect!'
-                })
-            }            
+            const comparePassword = bcrypt.compareSync(password, checkUser.password);
+            if (!comparePassword) {
+                return resolve({
+                    status: 'ERR',
+                    message: 'Incorrect password'
+                });
+            }
 
             const access_token = await generalAccessToken({
-                id: checkUser.id,
+                id: checkUser._id,
                 isAdmin: checkUser.isAdmin
-            })
+            });
 
             const refresh_token = await generalRefreshToken({
-                id: checkUser.id,
+                id: checkUser._id,
                 isAdmin: checkUser.isAdmin
-            })
+            });
 
             resolve({
                 status: 'OK',
-                message: 'Success',
+                message: 'Login successful',
                 access_token,
                 refresh_token
-            })
-        }catch(e)
-        {
+            });
+        } catch (e) {
             reject(e);
         }
-    })
-}
+    });
+};
+
 
 const updateUser = (id, data) => {
     return new Promise(async (resolve, reject) => {

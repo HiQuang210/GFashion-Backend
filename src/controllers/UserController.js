@@ -34,38 +34,34 @@ const createUser = async (req, res) => {
 }
 
 const loginUser = async (req, res) => {
-    try{
-        const { name, email, password, confirmPassword, phone } = req.body
-        var reg = /^\w+([-+.']\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/
-        const isCheckEmail = reg.test(email)
+    try {
+        const { email, password } = req.body;
 
-        if (!name || !email || !password || !confirmPassword || !phone) {
-            return res.status(200).json({
+        if (!email || !password) {
+            return res.status(400).json({
                 status: 'ERR',
-                message: 'The input is required'
-            })
-        }else if (!isCheckEmail) 
-        {
-            return res.status(200).json({
-                status: 'ERR',
-                message: 'The input is email'
-            })
-        }else if (password !== confirmPassword)
-        {
-            return res.status(200).json({
-                status: 'ERR',
-                message: 'Confirm password must match the password'
-            })
+                message: 'Email and password are required'
+            });
         }
 
-        const response = await UserService.loginUser(req.body)
-        return res.status(200).json(response)
-    }catch(e){
-        return res.status(404).json({
-            message: e
-        })
+        const reg = /^\w+([-+.']\w+)*@\w+([-.]\w+)*\.\w+([-.]\w+)*$/;
+        if (!reg.test(email)) {
+            return res.status(400).json({
+                status: 'ERR',
+                message: 'Invalid email format'
+            });
+        }
+
+        const response = await UserService.loginUser({ email, password });
+        return res.status(200).json(response);
+    } catch (e) {
+        return res.status(500).json({
+            status: 'ERR',
+            message: e.message || 'Login err',
+        });
     }
-}
+};
+
 
 const updateUser = async (req, res) => {
     try{
