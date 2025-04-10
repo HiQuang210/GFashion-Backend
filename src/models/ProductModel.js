@@ -21,6 +21,7 @@ const productSchema = new mongoose. Schema(
         rating: { type: Number, required: true },
         description: { type: String },
         material: { type: String },
+        sale: { type: Number, default: 0 },
     },
     {
         timestamps: true,

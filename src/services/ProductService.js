@@ -103,52 +103,52 @@ const deleteProduct = (id) => {
   });
 };
 
-const getAllProduct = (limitItem, page, sort, filter) => {
+const getAllProduct = (limitItem, page, sort, filter, priceOption) => {
   return new Promise(async (resolve, reject) => {
     try {
       const totalProduct = await Product.countDocuments();
+      const objectSort = {};
+      const objectFilter = {};
       //console.log('filter', filter)
 
       if (filter) {
-        const allObjectFilter = await Product.find({ type: filter })
-          .select("_id image name price")
-          .limit(limitItem)
-          .skip(page * limitItem);
-        resolve({
-          status: "OK",
-          message: "Filter Product success",
-          data: allObjectFilter,
-          totalProd: totalProduct,
-          currentPage: Number(page + 1),
-          totalPage: Math.ceil(totalProduct / Number(limitItem)),
-        });
+        objectFilter.type = filter;
       }
 
       if (sort) {
-        const objectSort = {};
-        objectSort[sort[1]] = sort[0];
-        const allProductSort = await Product.find()
-          .limit(limitItem)
-          .skip(page * limitItem)
-          .sort(objectSort);
-        resolve({
-          status: "OK",
-          message: "Sort Product success",
-          data: allProductSort,
-          totalProd: totalProduct,
-          currentPage: Number(page + 1),
-          totalPage: Math.ceil(totalProduct / Number(limitItem)),
-        });
+        switch (sort) {
+          case "highest-rating":
+            objectSort.rating = -1;
+            break;
+          case "newest":
+            objectSort.updatedAt = -1;
+            break;
+          case "best-seller":
+            objectSort.sale = -1;
+            break;
+          case "price-asc":
+            objectSort.price = 1;
+            break;
+          case "price-desc":
+            objectSort.price = -1;
+            break;
+          default:
+            break;
+        }
       }
-      const allProduct = await Product.find()
+
+      const allProduct = await Product.find(objectFilter)
         .limit(limitItem)
-        .skip(page * limitItem);
+        .skip((page - 1) * limitItem)
+        .sort(objectSort)
+        .select("_id name image price");
+
       resolve({
         status: "OK",
         message: "Get all Product success",
         data: allProduct,
         totalProd: totalProduct,
-        currentPage: Number(page + 1),
+        currentPage: Number(page),
         totalPage: Math.ceil(totalProduct / Number(limitItem)),
       });
     } catch (e) {
