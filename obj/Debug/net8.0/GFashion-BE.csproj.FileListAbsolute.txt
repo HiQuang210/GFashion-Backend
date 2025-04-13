@@ -31,3 +31,5 @@ C:\Users\tranm\Desktop\GFashion-BE\obj\Debug\net8.0\refint\GFashion-BE.dll
 C:\Users\tranm\Desktop\GFashion-BE\obj\Debug\net8.0\GFashion-BE.pdb
 C:\Users\tranm\Desktop\GFashion-BE\obj\Debug\net8.0\GFashion-BE.genruntimeconfig.cache
 C:\Users\tranm\Desktop\GFashion-BE\obj\Debug\net8.0\ref\GFashion-BE.dll
+C:\Users\tranm\Desktop\GFashion-BE\obj\Debug\net8.0\GFashion-BE.sourcelink.json
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\BCrypt.Net-Next.dll
