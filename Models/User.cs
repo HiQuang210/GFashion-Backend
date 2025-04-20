@@ -1,10 +1,17 @@
-namespace GFashion_BE.Models
+using MongoDB.Bson;
+using MongoDB.Bson.Serialization.Attributes;
+
+namespace GFashion_BE.Models;
+
+public class User
 {
-    public class User
-    {
-        public int Id { get; set; }
-        public string Email { get; set; } = null!;
-        public string PasswordHash { get; set; } = null!;
-        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
-    }
+    [BsonId]
+    [BsonRepresentation(BsonType.ObjectId)]
+    public string? Id { get; set; }
+
+    [BsonElement("username")]
+    public string Username { get; set; } = null!;
+
+    [BsonElement("passwordHash")]
+    public string PasswordHash { get; set; } = null!;
 }

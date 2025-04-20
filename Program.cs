@@ -7,7 +7,18 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
-builder.Services.AddSingleton<UserService>(); 
+builder.Services.AddSingleton<UserService>();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
 
 var app = builder.Build();
 
@@ -23,6 +34,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowAll");
 app.MapControllers();
 
 var summaries = new[]

@@ -1,26 +1,67 @@
 using GFashion_BE.Models;
+using MongoDB.Driver;
 
-namespace GFashion_BE.Services
+namespace GFashion_BE.Services;
+
+public class UserService
 {
-    public class UserService
-    {
-        private static List<User> users = new(); 
+    private readonly IMongoCollection<User> _users;
 
-        public User Create(string email, string password)
+    public UserService(IConfiguration configuration)
+    {
+        var client = new MongoClient(configuration["MongoDB:ConnectionString"]);
+        var database = client.GetDatabase(configuration["MongoDB:DatabaseName"]);
+        _users = database.GetCollection<User>("Users");
+    }
+
+    // Get all users
+    public async Task<List<User>> GetAllAsync()
+    {
+        return await _users.Find(_ => true).ToListAsync();
+    }
+
+    // Get one user by id
+    public async Task<User?> GetByIdAsync(string id)
+    {
+        return await _users.Find(u => u.Id == id).FirstOrDefaultAsync();
+    }
+
+    // Get user by username
+    public async Task<User?> GetByUsernameAsync(string username)
+    {
+        return await _users.Find(u => u.Username == username).FirstOrDefaultAsync();
+    }
+
+    // Create new user
+    public async Task CreateAsync(User user)
+    {
+        await _users.InsertOneAsync(user);
+    }
+
+    // Update user
+    public async Task UpdateAsync(string id, User userIn)
+    {
+        await _users.ReplaceOneAsync(u => u.Id == id, userIn);
+    }
+
+    // Delete user
+    public async Task DeleteAsync(string id)
+    {
+        await _users.DeleteOneAsync(u => u.Id == id);
+    }
+
+    // Seed sample user (optional)
+    public async Task SeedAdminAsync()
+    {
+        var admin = await GetByUsernameAsync("admin");
+        if (admin == null)
         {
             var user = new User
             {
-                Id = users.Count + 1,
-                Email = email,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(password)
+                Username = "admin",
+                PasswordHash = "123456"
             };
-            users.Add(user);
-            return user;
-        }
-
-        public bool EmailExists(string email)
-        {
-            return users.Any(u => u.Email == email);
+            await CreateAsync(user);
         }
     }
 }
