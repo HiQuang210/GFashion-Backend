@@ -8,6 +8,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddControllers();
 builder.Services.AddSingleton<UserService>();
+builder.Services.AddMemoryCache();
 
 builder.Services.AddCors(options =>
 {
