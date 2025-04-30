@@ -74,3 +74,9 @@ D:\GitHub\GFashion_BE\bin\Debug\net8.0\MongoDB.Driver.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\SharpCompress.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\Snappier.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\ZstdSharp.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\BouncyCastle.Cryptography.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\MailKit.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\MimeKit.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\System.Formats.Asn1.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\System.Security.Cryptography.Pkcs.dll
+D:\GitHub\GFashion_BE\bin\Debug\net8.0\runtimes\win\lib\net8.0\System.Security.Cryptography.Pkcs.dll
