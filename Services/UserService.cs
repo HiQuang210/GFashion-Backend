@@ -27,9 +27,9 @@ public class UserService
     }
 
     // Get user by username
-    public async Task<User?> GetByUsernameAsync(string username)
+    public async Task<User?> GetByUsernameAsync(string email)
     {
-        return await _users.Find(u => u.Username == username).FirstOrDefaultAsync();
+        return await _users.Find(u => u.Email == email).FirstOrDefaultAsync();
     }
 
     // Create new user
@@ -48,20 +48,5 @@ public class UserService
     public async Task DeleteAsync(string id)
     {
         await _users.DeleteOneAsync(u => u.Id == id);
-    }
-
-    // Seed sample user (optional)
-    public async Task SeedAdminAsync()
-    {
-        var admin = await GetByUsernameAsync("admin");
-        if (admin == null)
-        {
-            var user = new User
-            {
-                Username = "admin",
-                PasswordHash = "123456"
-            };
-            await CreateAsync(user);
-        }
     }
 }
