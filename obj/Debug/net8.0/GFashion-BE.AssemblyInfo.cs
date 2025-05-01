@@ -14,7 +14,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+7a712dc7675ecb1417d4d2f49d25f452e7d43f8b")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+693ff5d96acaadc3f27a831c6bc9694d487933aa")]
 [assembly: System.Reflection.AssemblyProductAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
