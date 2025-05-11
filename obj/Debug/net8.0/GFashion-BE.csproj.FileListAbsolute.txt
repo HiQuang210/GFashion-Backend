@@ -80,3 +80,15 @@ D:\GitHub\GFashion_BE\bin\Debug\net8.0\MimeKit.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\System.Formats.Asn1.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\System.Security.Cryptography.Pkcs.dll
 D:\GitHub\GFashion_BE\bin\Debug\net8.0\runtimes\win\lib\net8.0\System.Security.Cryptography.Pkcs.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\BouncyCastle.Cryptography.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\DnsClient.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\MailKit.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\MimeKit.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\MongoDB.Bson.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\MongoDB.Driver.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\SharpCompress.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\Snappier.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\System.Formats.Asn1.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\System.Security.Cryptography.Pkcs.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\ZstdSharp.dll
+C:\Users\tranm\Desktop\GFashion-BE\bin\Debug\net8.0\runtimes\win\lib\net8.0\System.Security.Cryptography.Pkcs.dll

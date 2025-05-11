@@ -26,12 +26,15 @@ public class UserController : ControllerBase
     [HttpPost("Register")]
     public async Task<IActionResult> Register([FromBody] AuthorizeDto registerDto)
     {
-        if (!Utils.IsValidEmail(registerDto.Email)) return BadRequest("Invalid email format.");
+        if (!Utils.IsValidEmail(registerDto.Email)) 
+            return BadRequest("Invalid email format.");
+
+        if (registerDto.Password != registerDto.ConfirmPassword)
+            return BadRequest("Passwords do not match.");
 
         var userExisted = await _userService.GetByUsernameAsync(registerDto.Email);
-
-        if (userExisted != null) return BadRequest("Username already exists.");
-        
+        if (userExisted != null) 
+            return BadRequest("Username already exists.");
 
         registerDto.Password = BCrypt.Net.BCrypt.HashPassword(registerDto.Password);
 

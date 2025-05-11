@@ -1340,24 +1340,19 @@
     ]
   },
   "packageFolders": {
-    "C:\\Users\\ADMIN\\.nuget\\packages\\": {},
-    "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages": {}
+    "C:\\Users\\tranm\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "D:\\GitHub\\GFashion_BE\\GFashion-BE.csproj",
+      "projectUniqueName": "C:\\Users\\tranm\\Desktop\\GFashion-BE\\GFashion-BE.csproj",
       "projectName": "GFashion-BE",
-      "projectPath": "D:\\GitHub\\GFashion_BE\\GFashion-BE.csproj",
-      "packagesPath": "C:\\Users\\ADMIN\\.nuget\\packages\\",
-      "outputPath": "D:\\GitHub\\GFashion_BE\\obj\\",
+      "projectPath": "C:\\Users\\tranm\\Desktop\\GFashion-BE\\GFashion-BE.csproj",
+      "packagesPath": "C:\\Users\\tranm\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\tranm\\Desktop\\GFashion-BE\\obj\\",
       "projectStyle": "PackageReference",
-      "fallbackFolders": [
-        "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
-      ],
       "configFilePaths": [
-        "C:\\Users\\ADMIN\\AppData\\Roaming\\NuGet\\NuGet.Config",
-        "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.FallbackLocation.config",
+        "C:\\Users\\tranm\\AppData\\Roaming\\NuGet\\NuGet.Config",
         "C:\\Program Files (x86)\\NuGet\\Config\\Microsoft.VisualStudio.Offline.config"
       ],
       "originalTargetFrameworks": [
