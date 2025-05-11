@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+1faf300b1ad1a1decd5dbb2250ef93d688fe912a")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f598f5b5c838f449bf3defb9d56185c580f4b76d")]
 [assembly: System.Reflection.AssemblyProductAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyTitleAttribute("GFashion-BE")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
