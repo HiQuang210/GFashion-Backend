@@ -137,11 +137,20 @@ const getAllProduct = (limitItem, page, sort, filter, priceOption) => {
         }
       }
 
-      const allProduct = await Product.find(objectFilter)
-        .limit(limitItem)
-        .skip((page - 1) * limitItem)
-        .sort(objectSort)
-        .select("_id name image price");
+      const allProduct = await Product.aggregate([
+        { $match: objectFilter },
+        { $sort: objectSort },
+        { $skip: (page - 1) * limitItem },
+        { $limit: limitItem },
+        {
+          $project: {
+            _id: 1,
+            name: 1,
+            image: { $arrayElemAt: ["$images", 0] },
+            price: 1,
+          },
+        },
+      ]);
 
       resolve({
         status: "OK",
@@ -162,7 +171,7 @@ const getDetailProduct = (id) => {
     try {
       const product = await Product.findOne({
         _id: id,
-      });
+      }).select("name images type price variants rating description material");
       if (product === null) {
         resolve({
           status: "OK",
