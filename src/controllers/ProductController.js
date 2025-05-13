@@ -2,37 +2,42 @@ const ProductService = require("../services/ProductService");
 
 const createProduct = async (req, res) => {
   try {
-    const {
-      name,
-      image,
-      type,
-      price,
-      variants,
-      rating,
-      description,
-      material,
-    } = req.body;
+    const { name, type, price, description, material } = req.body;
 
-    if (
-      !name ||
-      !image ||
-      !type ||
-      !price ||
-      !variants ||
-      !rating ||
-      !description ||
-      !material
-    ) {
-      return res.status(200).json({
+    let { variants } = req.body;
+    if (!name || !type || !price || !variants || !description || !material) {
+      return res.status(400).json({
         status: "ERR",
         message: "The input is required",
       });
     }
-    const response = await ProductService.createProduct(req.body);
+
+    if (req.files.length === 0) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "The image is required",
+      });
+    }
+
+    // Parse the variants JSON string
+    try {
+      variants = JSON.parse(variants);
+    } catch (error) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Invalid JSON format for variants",
+      });
+    }
+
+    const response = await ProductService.createProduct({ name, type, price, variants, description, material }, req.files);
+    if (response.status === "ERR") {
+      return res.status(400).json(response);
+    }
+
     return res.status(200).json(response);
   } catch (e) {
     return res.status(404).json({
-      message: e,
+      message: e.message,
     });
   }
 };
@@ -103,14 +108,14 @@ const getDetailProduct = async (req, res) => {
 
 const getAllProduct = async (req, res) => {
   try {
-    const { limitItem, page, sort, filter, priceOption } = req.query;
+    const { limitItem, page, sort, filter, searchQuery } = req.query;
     // Parse filter as an array
     const response = await ProductService.getAllProduct(
       Number(limitItem) || 8,
       Number(page) || 0,
       sort,
       filter,
-      priceOption
+      searchQuery
     );
     //console.log('lm', limitItem)
     //console.log('pg', page)

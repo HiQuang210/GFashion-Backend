@@ -1,11 +1,11 @@
 const Product = require("../models/ProductModel");
 const bcrypt = require("bcrypt");
+const cloudinary = require("../cloudinary");
 
-const createProduct = (newProduct) => {
+const createProduct = (newProduct, files) => {
   return new Promise(async (resolve, reject) => {
     const {
       name,
-      image,
       type,
       price,
       variants,
@@ -19,14 +19,35 @@ const createProduct = (newProduct) => {
         name: name,
       });
       if (checkProduct !== null) {
-        resolve({
+        return resolve({
           status: "OK",
           message: "The name of Product is already exist!",
         });
       }
+
+      // Upload files to Cloudinary
+      const uploadPromises = files.map((file) => {
+        return new Promise((resolve, reject) => {
+          const uploadStream = cloudinary.v2.uploader.upload_stream(
+            { resource_type: "image" },
+            (error, result) => {
+              if (error) {
+                reject(error);
+              } else {
+                console.log("result", result);
+                resolve(result.secure_url);
+              }
+            }
+          );
+          uploadStream.end(file.buffer);
+        });
+      });
+
+      const imageUrls = await Promise.all(uploadPromises);
+
       const createdProduct = await Product.create({
         name,
-        image,
+        images: imageUrls,
         type,
         price,
         variants,
@@ -103,7 +124,7 @@ const deleteProduct = (id) => {
   });
 };
 
-const getAllProduct = (limitItem, page, sort, filter, priceOption) => {
+const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
   return new Promise(async (resolve, reject) => {
     try {
       const totalProduct = await Product.countDocuments();
@@ -137,9 +158,17 @@ const getAllProduct = (limitItem, page, sort, filter, priceOption) => {
         }
       }
 
-      const allProduct = await Product.aggregate([
-        { $match: objectFilter },
-        { $sort: objectSort },
+      if (searchQuery) {
+        objectFilter.name = { $regex: searchQuery, $options: "i" };
+      }
+
+      const pipeline = [{ $match: objectFilter }];
+
+      if (Object.keys(objectSort).length > 0) {
+        pipeline.push({ $sort: objectSort });
+      }
+
+      pipeline.push(
         { $skip: (page - 1) * limitItem },
         { $limit: limitItem },
         {
@@ -149,16 +178,19 @@ const getAllProduct = (limitItem, page, sort, filter, priceOption) => {
             image: { $arrayElemAt: ["$images", 0] },
             price: 1,
           },
-        },
-      ]);
+        }
+      );
+
+      const allProduct = await Product.aggregate(pipeline);
 
       resolve({
         status: "OK",
         message: "Get all Product success",
         data: allProduct,
-        totalProd: totalProduct,
+        totalProd: allProduct.length,
         currentPage: Number(page),
         totalPage: Math.ceil(totalProduct / Number(limitItem)),
+     
       });
     } catch (e) {
       reject(e);

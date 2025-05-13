@@ -71,18 +71,22 @@ const loginUser = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
-    const userId = req.params.id;
+    const userId = req.user.id;
     const data = req.body;
     //console.log('data', data)
 
     if (!userId) {
-      return res.status(200).json({
+      return res.status(400).json({
         status: "ERR",
         message: "User ID is required",
       });
     }
     //console.log('id', userId)
     const response = await UserService.updateUser(userId, data);
+
+    if (response.status === "ERR") {
+      return res.status(400).json(response);
+    }
     return res.status(200).json(response);
   } catch (e) {
     console.log("error");

@@ -92,7 +92,7 @@ const loginUser = ({ email, password }) => {
           email: checkUser.email,
           phone: checkUser.phone || "NA",
           address: checkUser.address || "NA",
-          favorite: checkUser.favorite,
+          favorite: checkUser.favorite || [],
           cartSize: checkUser.cart.length || 0,
         },
       });
@@ -108,7 +108,7 @@ const updateUser = (id, data) => {
       const checkUser = await User.findOne({
         _id: id,
       });
-      console.log("checkUser", checkUser);
+
       if (checkUser === null) {
         resolve({
           status: "OK",
@@ -116,14 +116,32 @@ const updateUser = (id, data) => {
         });
       }
 
+      console.log("data before change: ", data);
+      if (data.oldPassword) {
+        const comparePassword = bcrypt.compareSync(
+          data.oldPassword,
+          checkUser.password
+        );
+        if (!comparePassword) {
+          return resolve({
+            status: "ERR",
+            message: "Incorrect password",
+          });
+        }
+        delete data.oldPassword;
+        console.log("data: ", data);
+
+        const hash = bcrypt.hashSync(data.password, 10);
+        data.password = hash;
+      }
+
       //console.log('b4 update')
-      const updateUser = await User.findByIdAndUpdate(id, data, { new: true });
+      await User.findByIdAndUpdate(id, data, { new: true });
       //console.log('updatedUser here', updateUser)
 
       resolve({
         status: "OK",
         message: "Success",
-        data: updateUser,
       });
     } catch (e) {
       reject(e);
@@ -331,9 +349,9 @@ const handleCartAction = (action, userId, productId, color, size, quantity) => {
 
         user.cart.push({
           product: productId,
-          color: "Black",
-          size: "M",
-          quantity: 1,
+          color: color,
+          size: size,
+          quantity: quantity,
         });
         await user.save();
 
@@ -398,7 +416,7 @@ const getUserCart = (userId) => {
         _id: userId,
       }).populate({
         path: "cart.product",
-        select: "price name",
+        select: "price name images",
       });
 
       if (user === null) {
@@ -408,14 +426,14 @@ const getUserCart = (userId) => {
         });
       }
 
-      const cartItems = user.cart.map((item) => ({
-        productId: item.product._id,
-        name: item.product.name,
-        color: item.color,
-        size: item.size,
-        quantity: item.quantity,
-        price: item.product.price,
-      }));
+      const cartItems = user.cart.map((item) => {
+        return {
+          product: item.product,
+          color: item.color,
+          size: item.size,
+          quantity: item.quantity,
+        };
+      });
 
       resolve({
         status: "OK",
