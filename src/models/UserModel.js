@@ -7,6 +7,15 @@ const userSchema = new mongoose.Schema(
     phone: { type: Number, required: false },
     refresh_token: { type: String, require: false },
     address: { type: String, require: false },
+    favorite: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
+    cart: [
+      {
+        product: { type: mongoose.Schema.Types.ObjectId, ref: "Product" },
+        color: { type: String, required: true },
+        size: { type: String, required: true },
+        quantity: { type: Number, default: 1 },
+      },
+    ],
   },
   {
     timestamps: true,

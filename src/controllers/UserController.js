@@ -148,6 +148,103 @@ const getDetailUser = async (req, res) => {
   }
 };
 
+// favorite controllers
+const getUserFavorites = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    console.log("id", userId);
+
+    if (!userId) {
+      return res.status(200).json({
+        status: "ERR",
+        message: "User ID is required",
+      });
+    }
+
+    const response = await UserService.getUserFavorites(userId);
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(404).json({
+      message: error,
+    });
+  }
+}
+
+const handleFavoriteAction = async (req, res) => {
+  try {
+    const action = req.query.action;
+    const userId = req.user.id;
+    const productId = req.query.productId;
+
+    if (!userId || !productId) {
+      return res.status(200).json({
+        status: "ERR",
+        message: "User ID and Product ID are required",
+      });
+    }
+
+    const response = await UserService.handleFavoriteAction(action, userId, productId);
+
+    if (response.status === "ERR") {
+      return res.status(400).json(response);
+    }
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(404).json({
+      message: error,
+    });
+  }
+}
+
+const getUserCart = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    if (!userId) {
+      return res.status(200).json({
+        status: "ERR",
+        message: "User ID is required",
+      });
+    }
+
+    const response = await UserService.getUserCart(userId);
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(404).json({
+      message: error,
+    });
+  }
+};
+
+const handleCartAction = async (req, res) => {
+  try {
+    const action = req.query.action;
+    const userId = req.user.id;
+    const productId = req.body.productId;
+    const color = req.body.color;
+    const size = req.body.size;
+    const quantity = req.body.quantity;
+
+    if (!userId || !productId) {
+      return res.status(200).json({
+        status: "ERR",
+        message: "User ID and Product ID are required",
+      });
+    }
+
+    const response = await UserService.handleCartAction(action, userId, productId, color, size, quantity);
+
+    if (response.status === "ERR") {
+      return res.status(400).json(response);
+    }
+    return res.status(200).json(response);
+  } catch (error) {
+    return res.status(404).json({
+      message: error,
+    });
+  }
+}
+
 const refreshToken = async (req, res) => {
   try {
     const token = req.headers.token.split(" ")[1];
@@ -175,5 +272,9 @@ module.exports = {
   deleteUser,
   getAllUser,
   getDetailUser,
+  getUserFavorites,
+  handleFavoriteAction,
+  getUserCart,
+  handleCartAction,
   refreshToken,
 };

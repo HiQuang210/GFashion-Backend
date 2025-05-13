@@ -10,6 +10,15 @@ router.put('/update-user/:id', userController.updateUser)
 router.delete('/delete-user/:id', authMiddleware, userController.deleteUser)
 router.get('/getAll', authMiddleware, userController.getAllUser)
 router.get('/get-detail/:id', authUserMiddleware, userController.getDetailUser)
+
+// favorite
+router.get('/get-user-favorites', authUserMiddleware, userController.getUserFavorites)
+router.post('/handle-favorite', authUserMiddleware, userController.handleFavoriteAction)
+
+// cart
+router.get('/get-user-cart', authUserMiddleware, userController.getUserCart)
+router.post('/handle-cart', authUserMiddleware, userController.handleCartAction)
+
 router.post('/refresh-token', userController.refreshToken)
 
 module.exports = router

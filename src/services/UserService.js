@@ -44,6 +44,8 @@ const createUser = (newUser) => {
             email: createdUser.email,
             phone: createdUser.phone || "NA",
             address: createdUser.address || "NA",
+            favoriteSize: checkUser.favorite.length || 0,
+            cartSize: createdUser.cart.length || 0,
           },
         });
       }
@@ -90,6 +92,8 @@ const loginUser = ({ email, password }) => {
           email: checkUser.email,
           phone: checkUser.phone || "NA",
           address: checkUser.address || "NA",
+          favorite: checkUser.favorite,
+          cartSize: checkUser.cart.length || 0,
         },
       });
     } catch (e) {
@@ -198,6 +202,232 @@ const getDetailUser = (id) => {
   });
 };
 
+const getUserFavorites = (userId) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const user = await User.findOne({
+        _id: userId,
+      }).populate("favorite");
+
+      if (user === null) {
+        resolve({
+          status: "ERR",
+          message: "The user is not defined!",
+        });
+      }
+
+      const favoriteItems = user.favorite.map((item) => ({
+        productId: item._id,
+        name: item.name,
+        price: item.price,
+        image: item.image,
+        color: item.variants[0].color,
+        size: item.variants[0].sizes[0].size,
+      }));
+
+      resolve({
+        status: "OK",
+        message: "Get user favorite success",
+        data: favoriteItems,
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
+const handleFavoriteAction = (action, userId, productId) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const user = await User.findOne({
+        _id: userId,
+      });
+      if (user === null) {
+        resolve({
+          status: "ERR",
+          message: "The user is not defined!",
+        });
+      }
+
+      if (action == "add") {
+        const checkProduct = user.favorite.find(
+          (item) => item.toString() === productId.toString()
+        );
+        console.log("checkProduct", checkProduct);
+
+        if (checkProduct !== undefined) {
+          console.log("Product is already in favorite list");
+          return resolve({
+            status: "ERR",
+            message: "The product is already in favorite list!",
+          });
+        }
+
+        user.favorite.push(productId);
+        await user.save();
+
+        resolve({
+          status: "OK",
+          message: "Add favorite success",
+        });
+      } else {
+        const checkProduct = user.favorite.find(
+          (item) => item.toString() === productId
+        );
+
+        if (checkProduct === undefined) {
+          resolve({
+            status: "ERR",
+            message: "The product is not in favorite list!",
+          });
+        }
+
+        user.favorite = user.favorite.filter(
+          (item) => item.toString() !== productId
+        );
+        await user.save();
+
+        resolve({
+          status: "OK",
+          message: "Remove favorite success",
+        });
+      }
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
+const handleCartAction = (action, userId, productId, color, size, quantity) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const user = await User.findOne({
+        _id: userId,
+      });
+      if (user === null) {
+        resolve({
+          status: "ERR",
+          message: "The user is not defined!",
+        });
+      }
+
+      if (action == "add") {
+        const checkProduct = user.cart.find(
+          (item) =>
+            item.product.toString() === productId.toString() &&
+            item.color === color &&
+            item.size === size
+        );
+
+        if (checkProduct !== undefined) {
+          checkProduct.quantity += quantity;
+          await user.save();
+
+          return resolve({
+            status: "OK",
+            message: "Add cart success",
+          });
+        }
+
+        user.cart.push({
+          product: productId,
+          color: "Black",
+          size: "M",
+          quantity: 1,
+        });
+        await user.save();
+
+        resolve({
+          status: "OK",
+          message: "Add cart success",
+        });
+      } else if (action == "remove") {
+        const checkProduct = user.cart.find(
+          (item) => item.product.toString() === productId
+        );
+
+        if (checkProduct === undefined) {
+          return resolve({
+            status: "ERR",
+            message: "The product is not in cart list!",
+          });
+        }
+
+        user.cart = user.cart.filter(
+          (item) => item.product.toString() !== productId
+        );
+        await user.save();
+
+        resolve({
+          status: "OK",
+          message: "Remove cart success",
+        });
+      } else {
+        const checkProduct = user.cart.find(
+          (item) =>
+            item.product.toString() === productId.toString() &&
+            item.color === color &&
+            item.size === size
+        );
+
+        if (checkProduct === undefined) {
+          return resolve({
+            status: "ERR",
+            message: "The product is not in cart list!",
+          });
+        }
+
+        checkProduct.quantity = quantity;
+        await user.save();
+
+        resolve({
+          status: "OK",
+          message: "Update cart success",
+        });
+      }
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
+const getUserCart = (userId) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const user = await User.findOne({
+        _id: userId,
+      }).populate({
+        path: "cart.product",
+        select: "price name",
+      });
+
+      if (user === null) {
+        resolve({
+          status: "ERR",
+          message: "The user is not defined!",
+        });
+      }
+
+      const cartItems = user.cart.map((item) => ({
+        productId: item.product._id,
+        name: item.product.name,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+        price: item.product.price,
+      }));
+
+      resolve({
+        status: "OK",
+        message: "Get user cart success",
+        data: cartItems,
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 module.exports = {
   createUser,
   loginUser,
@@ -205,4 +435,8 @@ module.exports = {
   deleteUser,
   getAllUser,
   getDetailUser,
+  getUserFavorites,
+  handleFavoriteAction,
+  getUserCart,
+  handleCartAction,
 };
