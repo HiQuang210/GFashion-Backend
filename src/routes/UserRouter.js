@@ -33,4 +33,6 @@ router.post(
 
 router.post("/refresh-token", userController.refreshToken);
 
+router.get("/get-dashboard", authMiddleware, userController.getDashboard);
+
 module.exports = router;

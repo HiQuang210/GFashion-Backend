@@ -18,7 +18,7 @@ const authMiddleware = (req, res, next) => {
       next();
       console.log("true");
     } else {
-      return res.status(404).json({
+      return res.status(401).json({
         message: "The authentication2",
         status: "ERROR",
       });
@@ -43,7 +43,7 @@ const authUserMiddleware = (req, res, next) => {
     if (err) {
       return res.status(403).json({
         message: "Invalid or expired token",
-        status: "ERROR",
+        status: "UNAUTHORIZED",
       });
     }
     req.user = user.payload; // Attach the user object to the request

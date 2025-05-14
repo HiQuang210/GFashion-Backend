@@ -1,25 +1,29 @@
 const User = require("../models/UserModel");
+const Product = require("../models/ProductModel");
+const Order = require("../models/OrderModel");
 const bcrypt = require("bcrypt");
 const { generalAccessToken, generalRefreshToken } = require("./JwtService");
 
 const createUser = (newUser) => {
   return new Promise(async (resolve, reject) => {
     const { email, password, confirmPassword } = newUser;
-    try {
-      const checkUser = await User.findOne({
-        email: email,
-      });
-      if (checkUser !== null) {
-        resolve({
-          status: "ERR",
-          message: "The email is already exist!",
-        });
-      }
 
+    const checkUser = await User.findOne({
+      email: email,
+    });
+    if (checkUser !== null) {
+      return resolve({
+        status: "ERR",
+        message: "The email is already exist!",
+      });
+    }
+
+    try {
       const hash = bcrypt.hashSync(password, 10);
       const createdUser = await User.create({
         email,
         password: hash,
+
       });
 
       const access_token = await generalAccessToken({
@@ -44,7 +48,7 @@ const createUser = (newUser) => {
             email: createdUser.email,
             phone: createdUser.phone || "NA",
             address: createdUser.address || "NA",
-            favoriteSize: checkUser.favorite.length || 0,
+            favorite: createdUser.favorite || [],
             cartSize: createdUser.cart.length || 0,
           },
         });
@@ -238,7 +242,7 @@ const getUserFavorites = (userId) => {
         productId: item._id,
         name: item.name,
         price: item.price,
-        image: item.image,
+        image: item.images[0],
         color: item.variants[0].color,
         size: item.variants[0].sizes[0].size,
       }));
@@ -446,6 +450,75 @@ const getUserCart = (userId) => {
   });
 };
 
+const getDashboard = () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const totalUser = await User.countDocuments({ isAdmin: false });
+      const totalProduct = await Product.countDocuments();
+      const totalOrder = await Order.countDocuments();
+
+      const orders = await Order.find({
+        status: "completed",
+      }).populate({
+        path: "products.productId",
+        select: "price",
+      });
+
+      const totalRevenue = orders.reduce((acc, order) => {
+        const totalOrder = order.products.reduce((acc, product) => {
+          return acc + product.productId.price * product.quantity;
+        }, 0);
+        return acc + totalOrder;
+      }, 0);
+
+      const recentOrders = await Order.find()
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate({
+          path: "userId",
+          select: "phone email",
+        })
+        .populate({
+          path: "products.productId",
+          select: "price name images",
+        });
+
+      const addedTotalRecentOrder = recentOrders.map((order) => {
+        const total = order.products.reduce((acc, product) => {
+          return acc + product.productId.price * product.quantity;
+        }, 0);
+        return {
+          ...order._doc,
+          total,
+        };
+      });
+
+      const refinedRecentOrder = addedTotalRecentOrder.map((order) => ({
+        id: order._id,
+        customerPhone: order.userId.phone,
+        customerEmail: order.userId.email,
+        total: order.total + (order.delivery === "standard" ? 30000 : 50000),
+        date: order.createdAt,
+        status: order.status,
+      }));
+
+      resolve({
+        status: "OK",
+        message: "Get dashboard success",
+        data: {
+          totalUser,
+          totalProduct,
+          totalOrder,
+          totalRevenue,
+          recentOrders: refinedRecentOrder,
+        },
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 module.exports = {
   createUser,
   loginUser,
@@ -457,4 +530,5 @@ module.exports = {
   handleFavoriteAction,
   getUserCart,
   handleCartAction,
+  getDashboard,
 };

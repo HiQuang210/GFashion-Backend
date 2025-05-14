@@ -30,7 +30,7 @@ const createUser = async (req, res) => {
     return res.status(200).json(response);
   } catch (e) {
     return res.status(404).json({
-      message: e,
+      message: e.message,
     });
   }
 };
@@ -269,6 +269,17 @@ const refreshToken = async (req, res) => {
   }
 };
 
+const getDashboard = async (req, res) => {
+  try {
+    const response = await UserService.getDashboard();
+    return res.status(200).json(response);
+  } catch (e) {
+    return res.status(404).json({
+      message: e.message,
+    });
+  }
+}
+
 module.exports = {
   createUser,
   loginUser,
@@ -281,4 +292,5 @@ module.exports = {
   getUserCart,
   handleCartAction,
   refreshToken,
+  getDashboard
 };
