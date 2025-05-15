@@ -2,11 +2,12 @@ const User = require("../models/UserModel");
 const Product = require("../models/ProductModel");
 const Order = require("../models/OrderModel");
 const bcrypt = require("bcrypt");
+const cloudinary = require("../cloudinary");
 const { generalAccessToken, generalRefreshToken } = require("./JwtService");
 
 const createUser = (newUser) => {
   return new Promise(async (resolve, reject) => {
-    const { email, password, confirmPassword } = newUser;
+    const { email, password, phone, firstName, lastName } = newUser;
 
     const checkUser = await User.findOne({
       email: email,
@@ -23,7 +24,9 @@ const createUser = (newUser) => {
       const createdUser = await User.create({
         email,
         password: hash,
-
+        phone,
+        firstName,
+        lastName,
       });
 
       const access_token = await generalAccessToken({
@@ -46,11 +49,12 @@ const createUser = (newUser) => {
           access_token,
           userInfo: {
             email: createdUser.email,
+            firstName: createdUser.firstName || "NA",
+            lastName: createdUser.lastName || "NA",
             phone: createdUser.phone || "NA",
-            address: createdUser.address || "NA",
             favorite: createdUser.favorite || [],
             cartSize: createdUser.cart.length || 0,
-          },
+          }
         });
       }
     } catch (e) {
@@ -59,24 +63,52 @@ const createUser = (newUser) => {
   });
 };
 
-const loginUser = ({ email, password }) => {
+const loginUser = ({ email, password, requireAdmin = false }) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkUser = await User.findOne({ email });
+      console.log(`Login attempt for email: ${email}, requireAdmin: ${requireAdmin}`);
+      
+      const checkUser = await User.findOne({ email }).lean(); 
+      console.log(`User found:`, checkUser ? { 
+        id: checkUser._id, 
+        email: checkUser.email, 
+        isAdmin: checkUser.isAdmin,
+        isActive: checkUser.isActive 
+      } : null);
+
       if (!checkUser) {
-        return resolve({
-          status: "ERR",
-          message: "User undefined",
+        return reject({
+          status: 404,
+          message: "Incorrect email or password"
+        });
+      }
+
+      if (!checkUser.isActive) {
+        console.log('Account deactivated');
+        return reject({
+          status: 401,
+          message: "Account is deactivated, please contact support"
         });
       }
 
       const comparePassword = bcrypt.compareSync(password, checkUser.password);
       if (!comparePassword) {
-        return resolve({
-          status: "ERR",
-          message: "Incorrect password",
+        console.log('Password incorrect');
+        return reject({
+          status: 401,
+          message: "Incorrect email or password"
         });
       }
+
+      if (requireAdmin && !checkUser.isAdmin) {
+        console.log(`Admin access denied. User isAdmin: ${checkUser.isAdmin}`);
+        return reject({
+          status: 403,
+          message: "Admin privilege is required"
+        });
+      }
+
+      console.log('Password verified, generating tokens...');
 
       const access_token = await generalAccessToken({
         id: checkUser._id,
@@ -88,70 +120,80 @@ const loginUser = ({ email, password }) => {
         isAdmin: checkUser.isAdmin,
       });
 
+      console.log('Login successful');
+
       resolve({
         status: "OK",
-        message: "Login successful",
+        message: requireAdmin ? "Admin login successful" : "Login successful",
         access_token,
+        refresh_token,
         userInfo: {
+          _id: checkUser._id,
           email: checkUser.email,
+          firstName: checkUser.firstName || "NA",
+          lastName: checkUser.lastName || "NA",
+          img: checkUser.img || "",
           phone: checkUser.phone || "NA",
           address: checkUser.address || "NA",
           favorite: checkUser.favorite || [],
-          cartSize: checkUser.cart.length || 0,
+          cartSize: checkUser.cart?.length || 0,
+          isAdmin: checkUser.isAdmin,
+          isActive: checkUser.isActive,
+          createdAt: checkUser.createdAt, 
         },
       });
     } catch (e) {
+      console.error('Login service error:', e);
       reject(e);
     }
   });
 };
 
-const updateUser = (id, data) => {
+const adminLoginUser = ({ email, password }) => {
+  console.log('Admin login service called');
+  return loginUser({ email, password, requireAdmin: true });
+};
+
+const updateUserById = (id, data) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkUser = await User.findOne({
-        _id: id,
-      });
-
-      if (checkUser === null) {
-        resolve({
-          status: "OK",
-          message: "The user is not defined!",
+      const user = await User.findById(id);
+      if (!user) {
+        return resolve({
+          status: "ERR",
+          message: "User not found",
         });
       }
 
-      console.log("data before change: ", data);
-      if (data.oldPassword) {
-        const comparePassword = bcrypt.compareSync(
-          data.oldPassword,
-          checkUser.password
-        );
-        if (!comparePassword) {
+      // Xử lý đổi mật khẩu nếu có oldPassword và password mới
+      if (data.oldPassword && data.password) {
+        const match = bcrypt.compareSync(data.oldPassword, user.password);
+        if (!match) {
           return resolve({
             status: "ERR",
-            message: "Incorrect password",
+            message: "Incorrect old password",
           });
         }
-        delete data.oldPassword;
-        console.log("data: ", data);
 
         const hash = bcrypt.hashSync(data.password, 10);
         data.password = hash;
+        delete data.oldPassword;
       }
 
-      //console.log('b4 update')
       await User.findByIdAndUpdate(id, data, { new: true });
-      //console.log('updatedUser here', updateUser)
 
       resolve({
         status: "OK",
-        message: "Success",
+        message: "User updated successfully",
       });
-    } catch (e) {
-      reject(e);
+    } catch (error) {
+      reject(error);
     }
   });
 };
+
+const updateUser = (id, data) => updateUserById(id, data);
+const adminUpdateUser = (id, data) => updateUserById(id, data);
 
 const deleteUser = (id) => {
   return new Promise(async (resolve, reject) => {
@@ -178,14 +220,19 @@ const deleteUser = (id) => {
   });
 };
 
-const getAllUser = (limitUser, page) => {
+const getAllUser = (limitUser, page, excludeUserId = null) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const totalUser = await User.countDocuments();
+      const query = excludeUserId ? { _id: { $ne: excludeUserId } } : {};
+      
+      const totalUser = await User.countDocuments(query);
       console.log("limitUser", limitUser);
-      const allUser = await User.find()
+      console.log("excludeUserId", excludeUserId);
+      
+      const allUser = await User.find(query)
         .limit(limitUser)
         .skip(page * limitUser);
+        
       resolve({
         status: "OK",
         message: "Get all user success",
@@ -522,7 +569,9 @@ const getDashboard = () => {
 module.exports = {
   createUser,
   loginUser,
+  adminLoginUser,
   updateUser,
+  adminUpdateUser,
   deleteUser,
   getAllUser,
   getDetailUser,

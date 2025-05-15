@@ -1,5 +1,4 @@
 const Product = require("../models/ProductModel");
-const bcrypt = require("bcrypt");
 const cloudinary = require("../cloudinary");
 const { ObjectId } = require("mongoose").Types;
 

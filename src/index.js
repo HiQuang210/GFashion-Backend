@@ -3,13 +3,14 @@ const dotenv = require("dotenv");
 const mongoose = require("mongoose");
 const routes = require("./routes");
 const bodyParser = require("body-parser");
+const cookieParser = require('cookie-parser');
 const cors = require("cors");
 const startOrderChangeStream = require("./changeStreams/orderChangeStream");
 
 dotenv.config();
 
 const app = express();
-const port = process.env.PORT || 3001;
+const port = process.env.PORT;
 
 app.use(cors());
 
@@ -18,7 +19,7 @@ app.get("/", (req, res) => {
 });
 
 app.use(bodyParser.json());
-
+app.use(cookieParser());
 routes(app);
 
 mongoose

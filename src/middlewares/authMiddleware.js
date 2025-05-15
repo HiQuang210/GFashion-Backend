@@ -2,53 +2,51 @@ const jwt = require("jsonwebtoken");
 const dotenv = require("dotenv");
 dotenv.config();
 
-const authMiddleware = (req, res, next) => {
-  //console.log('checktoken', req.headers.token)
-  const token = req.headers.token.split(" ")[1];
+const createAuthMiddleware = (requireAdmin = false) => {
+  return (req, res, next) => {
+    let token;
 
-  jwt.verify(token, process.env.ACCESS_TOKEN, function (err, user) {
-    if (err) {
-      return res.status(404).json({
-        message: "The authentication1",
-        status: "ERROR " + err.message,
-      });
+    // 1. Lấy token từ Authorization header hoặc cookie
+    if (req.headers.authorization?.startsWith("Bearer ")) {
+      token = req.headers.authorization.split(" ")[1];
+    } else if (req.cookies?.adminToken) {
+      token = req.cookies.adminToken;
     }
-    const { payload } = user;
-    if (payload?.isAdmin) {
-      next();
-      console.log("true");
-    } else {
+
+    // 2. Nếu không có token
+    if (!token) {
       return res.status(401).json({
-        message: "The authentication2",
+        message: "Token not provided",
         status: "ERROR",
       });
     }
-    console.log("user", user);
-  });
-};
 
-const authUserMiddleware = (req, res, next) => {
-  const authHeader = req.headers.authorization;
+    // 3. Xác thực token
+    jwt.verify(token, process.env.ACCESS_TOKEN, (err, decoded) => {
+      if (err) {
+        return res.status(403).json({
+          message: "Invalid or expired token",
+          status: "ERROR",
+        });
+      }
 
-  if (!authHeader) {
-    return res.status(401).json({
-      message: "Authorization header is missing",
-      status: "ERROR",
+      const { payload } = decoded;
+
+      // 4. Kiểm tra quyền admin nếu cần
+      if (requireAdmin && !payload?.isAdmin) {
+        return res.status(401).json({
+          message: "Admin access required",
+          status: "ERROR",
+        });
+      }
+
+      req.user = payload;
+      next();
     });
-  }
-
-  const token = authHeader.split(" ")[1];
-
-  jwt.verify(token, process.env.ACCESS_TOKEN, function (err, user) {
-    if (err) {
-      return res.status(403).json({
-        message: "Invalid or expired token",
-        status: "UNAUTHORIZED",
-      });
-    }
-    req.user = user.payload; // Attach the user object to the request
-    next();
-  });
+  };
 };
 
-module.exports = (authMiddleware, authUserMiddleware);
+module.exports = {
+  authMiddleware: createAuthMiddleware(true),
+  authUserMiddleware: createAuthMiddleware(false),
+};

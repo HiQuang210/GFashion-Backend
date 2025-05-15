@@ -1,12 +1,17 @@
 const mongoose = require("mongoose");
+
 const userSchema = new mongoose.Schema(
   {
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true },
-    isAdmin: { type: Boolean, default: false, required: true },
-    phone: { type: String, required: false },
-    refresh_token: { type: String, require: false },
-    address: { type: String, require: false },
+    firstName: { type: String, required: true },
+    lastName: { type: String, required: true },
+    img: { type: String, required: false }, 
+    isActive: { type: Boolean, default: true },
+    isAdmin: { type: Boolean, default: false },
+    phone: { type: String, required: true },
+    refresh_token: { type: String, required: false },
+    address: { type: String, default: null, required: false },
     favorite: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     cart: [
       {
@@ -21,5 +26,6 @@ const userSchema = new mongoose.Schema(
     timestamps: true,
   }
 );
+
 const User = mongoose.model("User", userSchema);
 module.exports = User;
