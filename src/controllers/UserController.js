@@ -311,32 +311,33 @@ const getUserCart = async (req, res) => {
 
 const handleCartAction = async (req, res) => {
   try {
-    const action = req.query.action;
-    const userId = req.user.id;
-    const productId = req.body.productId;
-    const color = req.body.color;
-    const size = req.body.size;
-    const quantity = req.body.quantity;
+    const { action, productId, color, size, quantity } = req.body;
+    const userId = req.user?.id || req.body.userId; // fallback for non-auth testing
 
     if (!userId || !productId) {
-      return res.status(200).json({
+      return res.status(400).json({
         status: "ERR",
         message: "User ID and Product ID are required",
       });
     }
 
-    const response = await UserService.handleCartAction(action, userId, productId, color, size, quantity);
+    const response = await UserService.handleCartAction(
+      action,
+      userId,
+      productId,
+      color,
+      size,
+      quantity
+    );
 
-    if (response.status === "ERR") {
-      return res.status(400).json(response);
-    }
-    return res.status(200).json(response);
+    return res.status(response.status === "OK" ? 200 : 400).json(response);
   } catch (error) {
-    return res.status(404).json({
-      message: error,
+    return res.status(500).json({
+      status: "ERR",
+      message: error.message || "Internal Server Error",
     });
   }
-}
+};
 
 const refreshToken = async (req, res) => {
   try {

@@ -1,16 +1,63 @@
+const mongoose = require('mongoose');
 const Product = require("../models/ProductModel");
 const cloudinary = require("../cloudinary");
-const { ObjectId } = require("mongoose").Types;
+const User = require('../models/UserModel'); 
+
+const uploadProductImageToCloudinary = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file?.buffer || !cloudinary?.uploader) {
+      return reject(new Error("Cloudinary config error or invalid file"));
+    }
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "image",
+        folder: "product_images",
+        transformation: [{ width: 1000, height: 1000, crop: "limit" }],
+      },
+      (err, result) => {
+        if (err)
+          return reject(new Error("Cloudinary upload failed: " + err.message));
+        resolve(result.secure_url);
+      }
+    );
+
+    stream.end(file.buffer);
+  });
+};
+
+const deleteImageFromCloudinary = (imageUrl) => {
+  return new Promise((resolve, reject) => {
+    if (!imageUrl) return resolve();
+
+    const publicId = imageUrl
+      .split('/')
+      .slice(-2)
+      .join('/')
+      .replace(/\.[^/.]+$/, ""); 
+
+    cloudinary.uploader.destroy(publicId, (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
+    });
+  });
+};
 
 const createProduct = (newProduct, files) => {
   return new Promise(async (resolve, reject) => {
-    const { name, type, price, variants, rating, description, material } =
-      newProduct;
+    const {
+      name,
+      type,
+      price,
+      variants,
+      rating,
+      description,
+      material,
+      producer,
+    } = newProduct;
 
     try {
-      const checkProduct = await Product.findOne({
-        name: name,
-      });
+      const checkProduct = await Product.findOne({ name });
       if (checkProduct !== null) {
         return resolve({
           status: "OK",
@@ -18,161 +65,29 @@ const createProduct = (newProduct, files) => {
         });
       }
 
-      // Upload files to Cloudinary
-      const uploadPromises = files.map((file) => {
-        return new Promise((resolve, reject) => {
-          const uploadStream = cloudinary.v2.uploader.upload_stream(
-            { resource_type: "image" },
-            (error, result) => {
-              if (error) {
-                reject(error);
-              } else {
-                console.log("result", result);
-                resolve(result.secure_url);
-              }
-            }
-          );
-          uploadStream.end(file.buffer);
-        });
-      });
-
-      const imageUrls = await Promise.all(uploadPromises);
+      const imageUrls = await Promise.all(
+        files.map((file) => uploadProductImageToCloudinary(file))
+      );
 
       const createdProduct = await Product.create({
         name,
         images: imageUrls,
         type,
         price,
+        producer,
         variants,
         rating,
         description,
         material,
       });
-      if (createdProduct) {
-        resolve({
-          status: "OK",
-          message: "Success",
-          data: createdProduct,
-        });
-      }
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const updateProduct = (id, data, files) => {
-  return new Promise(async (resolve, reject) => {
-    const { name, type, price, variants, description, material } = data;
-
-    try {
-      const checkProduct = await Product.findOne({
-        _id: id,
-      });
-
-      if (checkProduct === null) {
-        resolve({
-          status: "OK",
-          message: "The Product is not defined!",
-        });
-      }
-
-      const images = checkProduct.images;
-
-      // Upload files to Cloudinary
-      if (files) {
-        const uploadPromises = files.map((file) => {
-          return new Promise((resolve, reject) => {
-            const uploadStream = cloudinary.v2.uploader.upload_stream(
-              { resource_type: "image" },
-              (error, result) => {
-                if (error) {
-                  reject(error);
-                } else {
-                  console.log("result", result);
-                  resolve(result.secure_url);
-                }
-              }
-            );
-            uploadStream.end(file.buffer);
-          });
-        });
-        const imageUrls = await Promise.all(uploadPromises);
-        images.push(...imageUrls);
-      }
-
-      const updatedProduct = await Product.findByIdAndUpdate(
-        id,
-        {
-          name,
-          images,
-          type,
-          price,
-          variants,
-          description,
-          material,
-        },
-        {
-          new: true,
-        }
-      );
 
       resolve({
         status: "OK",
         message: "Success",
-        data: updatedProduct,
+        data: createdProduct,
       });
     } catch (e) {
       reject(e);
-    }
-  });
-};
-
-const deleteProduct = (id) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const checkProduct = await Product.findOne({
-        _id: id,
-      });
-
-      console.log("checkProduct", checkProduct);
-
-      if (checkProduct === null) {
-        resolve({
-          status: "OK",
-          message: "The Product is not defined!",
-        });
-      }
-
-      const images = checkProduct.images;
-
-      await Product.findByIdAndDelete(id);
-      resolve({
-        status: "OK",
-        message: "Delete Product success",
-      });
-
-      await User.updateMany(
-        { favorite: id, isAdmin: { $ne: true } },
-        { $pull: { favorite: id } }
-      );
-
-      // Update user documents to remove the reference to the deleted product from cart
-      await User.updateMany(
-        { "cart.product": id, isAdmin: { $ne: true } },
-        { $pull: { cart: { product: id } } }
-      );
-
-      // Delete images from Cloudinary
-      images.forEach(async (image) => {
-        const publicId = image.split("/").pop().split(".")[0];
-        await cloudinary.v2.uploader.destroy(publicId);
-      });
-    } catch (e) {
-      reject({
-        status: "ERR",
-        message: e.message,
-      });
     }
   });
 };
@@ -180,13 +95,18 @@ const deleteProduct = (id) => {
 const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const totalProduct = await Product.countDocuments();
+      const limit = Number(limitItem) || 10;
+      const currentPage = Number(page) || 1;
+
       const objectSort = {};
       const objectFilter = {};
-      //console.log('filter', filter)
 
       if (filter) {
         objectFilter.type = filter;
+      }
+
+      if (searchQuery) {
+        objectFilter.name = { $regex: searchQuery, $options: "i" };
       }
 
       if (sort) {
@@ -198,7 +118,7 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
             objectSort.updatedAt = -1;
             break;
           case "best-seller":
-            objectSort.sale = -1;
+            objectSort.sold = -1;
             break;
           case "price-asc":
             objectSort.price = 1;
@@ -207,29 +127,31 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
             objectSort.price = -1;
             break;
           default:
-            break;
+            objectSort.createdAt = -1;
         }
+      } else {
+        objectSort.createdAt = -1;
       }
 
-      if (searchQuery) {
-        objectFilter.name = { $regex: searchQuery, $options: "i" };
-      }
+      const totalProduct = await Product.countDocuments(objectFilter);
 
       const pipeline = [{ $match: objectFilter }];
 
-      if (Object.keys(objectSort).length > 0) {
-        pipeline.push({ $sort: objectSort });
-      }
+      pipeline.push({ $sort: objectSort });
 
       pipeline.push(
-        { $skip: (page - 1) * limitItem },
-        { $limit: limitItem },
+        { $skip: (currentPage - 1) * limit },
+        { $limit: limit },
         {
           $project: {
             _id: 1,
             name: 1,
-            image: { $arrayElemAt: ["$images", 0] },
+            images: 1,
             price: 1,
+            variants: 1,
+            sold: 1,
+            createdAt: 1,
+            updatedAt: 1, 
           },
         }
       );
@@ -240,12 +162,108 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
         status: "OK",
         message: "Get all Product success",
         data: allProduct,
-        totalProd: allProduct.length,
-        currentPage: Number(page),
-        totalPage: Math.ceil(totalProduct / Number(limitItem)),
+        totalProd: totalProduct,
+        currentPage,
+        totalPage: Math.ceil(totalProduct / limit),
       });
     } catch (e) {
       reject(e);
+    }
+  });
+};
+
+const getDetailProduct = (id) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const product = await Product.findOne({ _id: id }).select(
+        "name images type price producer variants rating description material createdAt updatedAt sold"
+      );
+
+      if (!product) {
+        return resolve({
+          status: "NOT_FOUND",
+          message: "The product is not defined!",
+        });
+      }
+
+      resolve({
+        status: "OK",
+        message: "Get Detail Product success",
+        data: product,
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
+const updateProduct = (id, data, files) => {
+  return new Promise(async (resolve, reject) => {
+    const {
+      name,
+      type,
+      price,
+      producer,
+      variants,
+      description,
+      material,
+      removedImages = [],
+    } = data;
+
+    try {
+      const existingProduct = await Product.findById(id);
+
+      if (!existingProduct) {
+        return resolve({
+          status: "NOT_FOUND",
+          message: "The Product is not defined!",
+        });
+      }
+
+      let updatedImages = existingProduct.images || [];
+
+      if (removedImages && removedImages.length > 0) {
+        const deletePromises = removedImages.map((url) =>
+          deleteImageFromCloudinary(url)
+        );
+        await Promise.all(deletePromises);
+
+        updatedImages = updatedImages.filter(
+          (imgUrl) => !removedImages.includes(imgUrl)
+        );
+      }
+
+      if (files && files.length > 0) {
+        const uploadPromises = files.map((file) =>
+          uploadProductImageToCloudinary(file)
+        );
+        const newImageUrls = await Promise.all(uploadPromises);
+        updatedImages.push(...newImageUrls);
+      }
+
+      const updatedProduct = await Product.findByIdAndUpdate(
+        id,
+        {
+          name,
+          type,
+          price,
+          producer,
+          variants,
+          description,
+          material,
+          images: updatedImages,
+          updatedAt: new Date(), 
+        },
+        { new: true }
+      );
+
+      resolve({
+        status: "OK",
+        message: "Update product success",
+        data: updatedProduct,
+      });
+    } catch (error) {
+      reject(error);
     }
   });
 };
@@ -272,38 +290,11 @@ const getTotalPages = (limitItem, filter) => {
   });
 };
 
-const getDetailProduct = (id) => {
+const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const product = await Product.findOne({
-        _id: id,
-      }).select("name images type price variants rating description material");
-      if (product === null) {
-        resolve({
-          status: "OK",
-          message: "The Product is not defined!",
-        });
-      }
-
-      resolve({
-        status: "OK",
-        message: "Get Detail Product success",
-        data: product,
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-// Admin Service
-const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const totalProduct = await Product.countDocuments();
       const objectSort = {};
       const objectFilter = {};
-      //console.log('filter', filter)
 
       if (filter) {
         objectFilter.type = filter;
@@ -318,15 +309,13 @@ const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
             objectSort.updatedAt = -1;
             break;
           case "best-seller":
-            objectSort.sale = -1;
+            objectSort.sold = -1;
             break;
           case "price-asc":
             objectSort.price = 1;
             break;
           case "price-desc":
             objectSort.price = -1;
-            break;
-          default:
             break;
         }
       }
@@ -341,7 +330,6 @@ const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
         pipeline.push({ $sort: objectSort });
       }
 
-      // Count total products
       const totalProductPipeline = [...pipeline, { $count: "total" }];
       const totalProductResult = await Product.aggregate(totalProductPipeline);
       const totalProd =
@@ -354,9 +342,18 @@ const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
           $project: {
             _id: 1,
             name: 1,
-            image: { $arrayElemAt: ["$images", 0] },
             type: 1,
             price: 1,
+            rating: 1,
+            description: 1,
+            material: 1,
+            producer: 1,
+            inStock: 1,
+            sold: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            images: 1,
+            variants: 1,
             stock: {
               $sum: {
                 $map: {
@@ -378,8 +375,9 @@ const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
         status: "OK",
         message: "Get all Product success",
         data: allProduct,
-        totalProd: totalProd,
+        totalProd,
         currentPage: Number(page),
+        totalPage: Math.ceil(totalProd / Number(limitItem)),
       });
     } catch (e) {
       reject(e);
@@ -387,86 +385,61 @@ const getAllProductsAsAdmin = (limitItem, page, sort, filter, searchQuery) => {
   });
 };
 
-const deleteImage = (id, imageId) => {
+const deleteProduct = (ids) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkProduct = await Product.findOne({
-        _id: id,
-      });
+      const productIds = Array.isArray(ids) ? ids : [ids];
 
-      if (checkProduct === null) {
-        return resolve({
-          status: "OK",
-          message: "The Product is not defined!",
+      const validIds = productIds.filter(id => mongoose.Types.ObjectId.isValid(id));
+
+      if (validIds.length === 0) {
+        return resolve({ 
+          status: "ERR", 
+          message: "No valid product ID(s) provided" 
         });
       }
 
-      // Delete image from Cloudinary
-      const publicId = imageId.split("/").pop().split(".")[0];
-      await cloudinary.v2.uploader.destroy(publicId);
+      const products = await Product.find({ _id: { $in: validIds } });
 
-      const updatedProduct = await Product.findByIdAndUpdate(
-        id,
-        {
-          $pull: { images: imageId },
-        },
-        { new: true }
-      );
-
-      resolve({
-        status: "OK",
-        message: "Success",
-        data: updatedProduct,
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const searchAsAdmin = async (searchQuery, option) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const objectFilter = {};
-
-      if (option === "name") {
-        objectFilter.name = { $regex: searchQuery, $options: "i" };
-      } else if (option === "id") {
-        objectFilter._id = new ObjectId.createFromHexString(searchQuery);
+      if (products.length === 0) {
+        return resolve({ 
+          status: "ERR", 
+          message: "No matching products found" 
+        });
       }
 
-      const searchedProducts = await Product.aggregate([
-        { $match: objectFilter },
-        { $limit: 10 },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            image: { $arrayElemAt: ["$images", 0] },
-            type: 1,
-            price: 1,
-            stock: {
-              $sum: {
-                $map: {
-                  input: "$variants",
-                  as: "variant",
-                  in: {
-                    $sum: "$$variant.sizes.stock",
-                  },
-                },
-              },
-            },
-          },
-        },
-      ]);
+      const imageUrls = products.flatMap(p => p.images || []);
+      
+      await Product.deleteMany({ _id: { $in: validIds } });
+      
+      await User.updateMany(
+        { favorite: { $in: validIds }, isAdmin: { $ne: true } },
+        { $pull: { favorite: { $in: validIds } } }
+      );
+
+      await User.updateMany(
+        { "cart.product": { $in: validIds }, isAdmin: { $ne: true } },
+        { $pull: { cart: { product: { $in: validIds } } } }
+      );
+
+      if (imageUrls.length > 0) {
+        await Promise.all(imageUrls.map(deleteImageFromCloudinary));
+      }
 
       resolve({
         status: "OK",
-        message: "Search Products success",
-        data: searchedProducts,
+        message: `Deleted ${validIds.length} product(s) successfully`,
+        data: {
+          deletedCount: validIds.length,
+          deletedIds: validIds
+        }
       });
-    } catch (e) {
-      reject(e);
+    } catch (error) {
+      console.error('Delete product error:', error);
+      reject({
+        status: "ERR",
+        message: error.message || "Something went wrong while deleting product(s)",
+      });
     }
   });
 };
@@ -478,7 +451,5 @@ module.exports = {
   getAllProduct,
   getTotalPages,
   getDetailProduct,
-  getAllProductsAsAdmin,
-  deleteImage,
-  searchAsAdmin,
+  adminAllProducts,
 };

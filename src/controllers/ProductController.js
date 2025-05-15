@@ -2,24 +2,16 @@ const ProductService = require("../services/ProductService");
 
 const createProduct = async (req, res) => {
   try {
-    const { name, type, price, description, material } = req.body;
-
+    const { name, type, price, description, material, producer, rating } = req.body;
     let { variants } = req.body;
-    if (!name || !type || !price || !variants || !description || !material) {
+
+    if (!name || !type || !price || !variants || !description || !material || !producer) {
       return res.status(400).json({
         status: "ERR",
         message: "The input is required",
       });
     }
 
-    if (req.files.length === 0) {
-      return res.status(400).json({
-        status: "ERR",
-        message: "The image is required",
-      });
-    }
-
-    // Parse the variants JSON string
     try {
       variants = JSON.parse(variants);
     } catch (error) {
@@ -30,9 +22,10 @@ const createProduct = async (req, res) => {
     }
 
     const response = await ProductService.createProduct(
-      { name, type, price, variants, description, material },
+      { name, type, price, variants, description, material, producer, rating },
       req.files
     );
+
     if (response.status === "ERR") {
       return res.status(400).json(response);
     }
@@ -48,50 +41,68 @@ const createProduct = async (req, res) => {
 const updateProduct = async (req, res) => {
   try {
     const ProductId = req.params.id;
-    const { name, type, price, description, material } = req.body;
-    let { variants } = req.body;
-    //console.log('data', data)
+    let {
+      name,
+      type,
+      price,
+      description,
+      material,
+      producer,
+      variants,
+      removedImages, 
+    } = req.body;
 
     if (!ProductId) {
-      return res.status(200).json({
+      return res.status(400).json({
         status: "ERR",
         message: "Product ID is required",
       });
     }
 
-    variants = JSON.parse(variants);
+    if (typeof variants === "string") {
+      try {
+        variants = JSON.parse(variants);
+      } catch (err) {
+        return res.status(400).json({
+          status: "ERR",
+          message: "Invalid variants format",
+        });
+      }
+    }
+
+    if (typeof removedImages === "string") {
+      try {
+        removedImages = JSON.parse(removedImages);
+      } catch (err) {
+        return res.status(400).json({
+          status: "ERR",
+          message: "Invalid removedImages format",
+        });
+      }
+    }
 
     const response = await ProductService.updateProduct(
       ProductId,
-      { name, type, price, variants, description, material },
-      req.files
+      {
+        name,
+        type,
+        price,
+        description,
+        material,
+        producer,
+        variants,
+        removedImages,
+      },
+      req.files 
     );
+
     return res.status(200).json(response);
   } catch (e) {
-    console.log("error");
-    return res.status(404).json({
-      message: "Error occured",
+    console.error("Update product error:", e);
+    return res.status(500).json({
+      status: "ERR",
+      message: "An error occurred",
       error: e.message,
-    });
-  }
-};
-
-const deleteProduct = async (req, res) => {
-  try {
-    const ProductId = req.params.id;
-
-    if (!ProductId) {
-      return res.status(200).json({
-        status: "ERR",
-        message: "Product ID is required",
-      });
-    }
-    console.log("id", ProductId);
-    const response = await ProductService.deleteProduct(ProductId);
-    return res.status(200).json(response);
-  } catch (e) {
-    return res.status(404).json({
-      message: e,
     });
   }
 };
@@ -106,7 +117,7 @@ const getDetailProduct = async (req, res) => {
         message: "Product ID is required",
       });
     }
-    console.log("id", ProductId);
+    // console.log("id", ProductId);
     const response = await ProductService.getDetailProduct(ProductId);
     return res.status(200).json(response);
   } catch (e) {
@@ -152,12 +163,10 @@ const getTotalPages = async (req, res) => {
   }
 };
 
-//Admin controllers
-const getAllProductsAsAdmin = async (req, res) => {
+const adminAllProducts = async (req, res) => {
   try {
     const { limitItem, page, sort, filter, searchQuery } = req.query;
-    // Parse filter as an array
-    const response = await ProductService.getAllProductsAsAdmin(
+    const response = await ProductService.adminAllProducts(
       Number(limitItem) || 8,
       Number(page) || 0,
       sort,
@@ -174,30 +183,26 @@ const getAllProductsAsAdmin = async (req, res) => {
   }
 };
 
-const deleteImage = async (req, res) => {
+const deleteProduct = async (req, res) => {
   try {
-    const { productId } = req.params;
-    const { imageId } = req.body;
-    const response = await ProductService.deleteImage(productId, imageId);
-    return res.status(200).json(response);
-  } catch (e) {
-    return res.status(404).json({
-      message: e.message,
-    });
-  }
-};
+    const { id } = req.params;
+    const { ids } = req.body; 
 
-const searchAsAdmin = async (req, res) => {
-  try {
-    const { query, option } = req.query;
-    // Parse filter as an array
-    const response = await ProductService.searchAsAdmin(query, option);
-    //console.log('lm', limitItem)
-    //console.log('pg', page)
+    const productIds = ids || id;
+
+    if (!productIds || (Array.isArray(productIds) && productIds.length === 0)) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Product ID(s) is required",
+      });
+    }
+
+    const response = await ProductService.deleteProduct(productIds);
     return res.status(200).json(response);
-  } catch (e) {
-    return res.status(404).json({
-      message: e.message,
+  } catch (error) {
+    return res.status(500).json({
+      status: "ERR",
+      message: error.message || "Failed to delete product(s)",
     });
   }
 };
@@ -209,7 +214,5 @@ module.exports = {
   getDetailProduct,
   getAllProduct,
   getTotalPages,
-  getAllProductsAsAdmin,
-  deleteImage,
-  searchAsAdmin,
+  adminAllProducts,
 };

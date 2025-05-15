@@ -11,7 +11,6 @@ const userSchema = new mongoose.Schema(
     isAdmin: { type: Boolean, default: false },
     phone: { type: String, required: true },
     refresh_token: { type: String, required: false },
-    address: { type: String, default: null, required: false },
     favorite: [{ type: mongoose.Schema.Types.ObjectId, ref: "Product" }],
     cart: [
       {

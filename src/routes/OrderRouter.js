@@ -11,8 +11,8 @@ router.get('/get-detail/:id', OrderController.getDetailOrder)
 router.post('/rating/:id', authUserMiddleware, OrderController.ratingOrder)
 
 // admin
-router.get('/get-detail-admin/:id', OrderController.getDetailOrderAsAdmin)
-router.get('/get-all-admin', authMiddleware, OrderController.getAllOrdersAsAdmin)
+router.get('/admin-get-detail/:id', OrderController.adminGetOrderDetail)
+router.get('/admin-get-all', authMiddleware, OrderController.adminAllOrders)
 router.put('/update-status/:id', authMiddleware, OrderController.updateOrderStatus)
 router.get('/search', authMiddleware, OrderController.searchAsAdmin)
 

@@ -2,11 +2,21 @@ const OrderService = require("../services/OrderService");
 
 const createOrder = async (req, res) => {
   try {
+    const { delivery, address, payment, recipient } = req.body;
+
+    if (!delivery || !address || !payment || !recipient) {
+      return res.status(400).json({
+        status: "ERROR",
+        message: "Missing required fields: delivery, address, payment, or recipient",
+      });
+    }
+
     const response = await OrderService.createOrder(req.body, req.user.id);
     return res.status(200).json(response);
   } catch (e) {
-    return res.status(404).json({
-      message: e.message,
+    return res.status(500).json({
+      status: "ERROR",
+      message: e.message || "Failed to create order",
     });
   }
 };
@@ -80,19 +90,20 @@ const getAllOrders = async (req, res) => {
   }
 };
 
-const getAllOrdersAsAdmin = async (req, res) => {
+const adminAllOrders = async (req, res) => {
   try {
-    const { page, size, isCompletedIncluded } = req.query;
-    const response = await OrderService.getAllOrdersAsAdmin(page, size, isCompletedIncluded);
+    const { page = 1, size = 10 } = req.query; 
+    const response = await OrderService.adminAllOrders(Number(page), Number(size));
     return res.status(200).json(response);
   } catch (e) {
-    return res.status(404).json({
-      message: e.message,
+    return res.status(500).json({
+      status: "ERROR",
+      message: e.message || "Failed to get orders",
     });
   }
 };
 
-const getDetailOrderAsAdmin = async (req, res) => {
+const adminGetOrderDetail = async (req, res) => {
   try {
     const OrderId = req.params.id;
     if (!OrderId) {
@@ -101,7 +112,7 @@ const getDetailOrderAsAdmin = async (req, res) => {
         message: "Order ID is required",
       });
     }
-    const response = await OrderService.getDetailOrderAsAdmin(OrderId);
+    const response = await OrderService.adminGetOrderDetail(OrderId);
     return res.status(200).json(response);
   } catch (e) {
     return res.status(404).json({
@@ -169,8 +180,8 @@ module.exports = {
   deleteOrder,
   getDetailOrder,
   getAllOrders,
-  getAllOrdersAsAdmin,
-  getDetailOrderAsAdmin,
+  adminAllOrders,
+  adminGetOrderDetail,
   updateOrderStatus,
   searchAsAdmin,
   ratingOrder,

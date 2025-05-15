@@ -134,7 +134,6 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
           lastName: checkUser.lastName,
           img: checkUser.img || null,
           phone: checkUser.phone || null,
-          address: checkUser.address || null,
           favorite: checkUser.favorite || [],
           cartSize: checkUser.cart?.length || 0,
           isAdmin: checkUser.isAdmin,
@@ -427,97 +426,78 @@ const handleFavoriteAction = (action, userId, productId) => {
   });
 };
 
-const handleCartAction = (action, userId, productId, color, size, quantity) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const user = await User.findOne({
-        _id: userId,
-      });
-      if (user === null) {
-        resolve({
-          status: "ERR",
-          message: "The user is not defined!",
-        });
-      }
-
-      if (action == "add") {
-        const checkProduct = user.cart.find(
-          (item) =>
-            item.product.toString() === productId.toString() &&
-            item.color === color &&
-            item.size === size
-        );
-
-        if (checkProduct !== undefined) {
-          checkProduct.quantity += quantity;
-          await user.save();
-
-          return resolve({
-            status: "OK",
-            message: "Add cart success",
-          });
-        }
-
-        user.cart.push({
-          product: productId,
-          color: color,
-          size: size,
-          quantity: quantity,
-        });
-        await user.save();
-
-        resolve({
-          status: "OK",
-          message: "Add cart success",
-        });
-      } else if (action == "remove") {
-        const checkProduct = user.cart.find(
-          (item) => item.product.toString() === productId
-        );
-
-        if (checkProduct === undefined) {
-          return resolve({
-            status: "ERR",
-            message: "The product is not in cart list!",
-          });
-        }
-
-        user.cart = user.cart.filter(
-          (item) => item.product.toString() !== productId
-        );
-        await user.save();
-
-        resolve({
-          status: "OK",
-          message: "Remove cart success",
-        });
-      } else {
-        const checkProduct = user.cart.find(
-          (item) =>
-            item.product.toString() === productId.toString() &&
-            item.color === color &&
-            item.size === size
-        );
-
-        if (checkProduct === undefined) {
-          return resolve({
-            status: "ERR",
-            message: "The product is not in cart list!",
-          });
-        }
-
-        checkProduct.quantity = quantity;
-        await user.save();
-
-        resolve({
-          status: "OK",
-          message: "Update cart success",
-        });
-      }
-    } catch (e) {
-      reject(e);
+const handleCartAction = async (action, userId, productId, color, size, quantity) => {
+  try {
+    const user = await User.findById(userId);
+    if (!user) {
+      return {
+        status: "ERR",
+        message: "User not found",
+      };
     }
-  });
+
+    const cartItem = user.cart.find(
+      (item) =>
+        item.product.toString() === productId.toString() &&
+        item.color === color &&
+        item.size === size
+    );
+
+    switch (action) {
+      case "add":
+        if (cartItem) {
+          cartItem.quantity += quantity;
+        } else {
+          user.cart.push({ product: productId, color, size, quantity });
+        }
+        break;
+
+      case "remove":
+        if (!cartItem) {
+          return {
+            status: "ERR",
+            message: "Product not found in cart",
+          };
+        }
+        user.cart = user.cart.filter(
+          (item) =>
+            !(
+              item.product.toString() === productId.toString() &&
+              item.color === color &&
+              item.size === size
+            )
+        );
+        break;
+
+      case "update":
+        if (!cartItem) {
+          return {
+            status: "ERR",
+            message: "Product not found in cart",
+          };
+        }
+        cartItem.quantity = quantity;
+        break;
+
+      default:
+        return {
+          status: "ERR",
+          message: "Invalid action",
+        };
+    }
+
+    await user.save();
+    return {
+      status: "OK",
+      message: `${action} cart success`,
+      cart: user.cart,
+    };
+  } catch (error) {
+    return {
+      status: "ERR",
+      message: error.message,
+    };
+  }
 };
 
 const getUserCart = (userId) => {
