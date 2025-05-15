@@ -130,11 +130,11 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
         userInfo: {
           _id: checkUser._id,
           email: checkUser.email,
-          firstName: checkUser.firstName || "NA",
-          lastName: checkUser.lastName || "NA",
-          img: checkUser.img || "",
-          phone: checkUser.phone || "NA",
-          address: checkUser.address || "NA",
+          firstName: checkUser.firstName,
+          lastName: checkUser.lastName,
+          img: checkUser.img || null,
+          phone: checkUser.phone || null,
+          address: checkUser.address || null,
           favorite: checkUser.favorite || [],
           cartSize: checkUser.cart?.length || 0,
           isAdmin: checkUser.isAdmin,
@@ -154,46 +154,106 @@ const adminLoginUser = ({ email, password }) => {
   return loginUser({ email, password, requireAdmin: true });
 };
 
-const updateUserById = (id, data) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const user = await User.findById(id);
-      if (!user) {
-        return resolve({
-          status: "ERR",
-          message: "User not found",
-        });
-      }
-
-      // Xử lý đổi mật khẩu nếu có oldPassword và password mới
-      if (data.oldPassword && data.password) {
-        const match = bcrypt.compareSync(data.oldPassword, user.password);
-        if (!match) {
-          return resolve({
-            status: "ERR",
-            message: "Incorrect old password",
-          });
-        }
-
-        const hash = bcrypt.hashSync(data.password, 10);
-        data.password = hash;
-        delete data.oldPassword;
-      }
-
-      await User.findByIdAndUpdate(id, data, { new: true });
-
-      resolve({
-        status: "OK",
-        message: "User updated successfully",
-      });
-    } catch (error) {
-      reject(error);
+const uploadImageToCloudinary = (file) => {
+  return new Promise((resolve, reject) => {
+    if (!file?.buffer || !cloudinary?.uploader) {
+      return reject(new Error("Cloudinary config error or invalid file"));
     }
+
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: "image",
+        folder: "user_avatars",
+        transformation: [{ width: 500, height: 500, crop: "limit" }],
+      },
+      (err, result) => {
+        if (err) return reject(new Error("Cloudinary upload failed: " + err.message));
+        resolve(result.secure_url);
+      }
+    );
+
+    stream.end(file.buffer);
   });
 };
 
-const updateUser = (id, data) => updateUserById(id, data);
-const adminUpdateUser = (id, data) => updateUserById(id, data);
+const deleteImageFromCloudinary = (imageUrl) => {
+  return new Promise((resolve, reject) => {
+    if (!imageUrl) return resolve();
+
+    const publicId = imageUrl
+      .split('/')
+      .slice(-2)
+      .join('/')
+      .replace(/\.[^/.]+$/, ""); 
+
+    cloudinary.uploader.destroy(publicId, (err, result) => {
+      if (err) return reject(err);
+      resolve(result);
+    });
+  });
+};
+
+const updateUserById = async (id, data, file) => {
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return { status: "ERR", message: "User not found" };
+    }
+
+    if (file) {
+      if (user.img) await deleteImageFromCloudinary(user.img);
+      data.img = await uploadImageToCloudinary(file);
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(id, data, { new: true });
+
+    return {
+      status: "OK",
+      message: "User updated successfully",
+      data: updatedUser,
+    };
+  } catch (error) {
+    console.error("Update user error:", error);
+    return { status: "ERR", message: error.message };
+  }
+};
+
+const updateUser = (id, data, file) => updateUserById(id, data, file);
+const adminUpdateUser = (id, data, file) => updateUserById(id, data, file);
+
+const changePassword = async (id, oldPassword, newPassword) => {
+  try {
+    const user = await User.findById(id);
+    if (!user) {
+      return {
+        status: "ERR",
+        message: "User not found",
+      };
+    }
+
+    const match = bcrypt.compareSync(oldPassword, user.password);
+    if (!match) {
+      return {
+        status: "ERR",
+        message: "Incorrect old password",
+      };
+    }
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+    user.password = hashedPassword;
+    await user.save();
+
+    return {
+      status: "OK",
+      message: "Password updated successfully",
+    };
+  } catch (error) {
+    return {
+      status: "ERR",
+      message: error.message,
+    };
+  }
+};
 
 const deleteUser = (id) => {
   return new Promise(async (resolve, reject) => {
@@ -226,8 +286,8 @@ const getAllUser = (limitUser, page, excludeUserId = null) => {
       const query = excludeUserId ? { _id: { $ne: excludeUserId } } : {};
       
       const totalUser = await User.countDocuments(query);
-      console.log("limitUser", limitUser);
-      console.log("excludeUserId", excludeUserId);
+      // console.log("limitUser", limitUser);
+      // console.log("excludeUserId", excludeUserId);
       
       const allUser = await User.find(query)
         .limit(limitUser)
@@ -262,7 +322,7 @@ const getDetailUser = (id) => {
 
       resolve({
         status: "OK",
-        message: "Get Detail User success",
+        message: "Get Detail user success",
         data: user,
       });
     } catch (e) {
@@ -570,8 +630,10 @@ module.exports = {
   createUser,
   loginUser,
   adminLoginUser,
+  updateUserById,
   updateUser,
   adminUpdateUser,
+  changePassword,
   deleteUser,
   getAllUser,
   getDetailUser,

@@ -2,13 +2,15 @@ const express = require("express");
 const router = express.Router();
 const userController = require("../controllers/UserController");
 const { authMiddleware, authUserMiddleware } = require("../middlewares/authMiddleware");
+const { uploadSingle } = require("../middlewares/multerMiddleware");
 
 router.post("/sign-up", userController.createUser);
 router.post("/sign-in", userController.loginUser);
 router.post("/admin-sign-in", userController.adminLoginUser);
 router.get("/debug-user/:email", userController.debugUser); 
-router.put("/update-user/:id", authUserMiddleware, userController.updateUser);
-router.put("/admin-update-user/:id", authMiddleware, userController.adminUpdateUser);
+router.put("/update-user/:id", authUserMiddleware, uploadSingle, userController.updateUser);
+router.put("/admin-update-user/:id", authMiddleware, uploadSingle, userController.adminUpdateUser);
+router.put("/change-password/:id", authUserMiddleware, userController.changePassword);
 router.delete("/delete-user/:id", authMiddleware, userController.deleteUser);
 router.get("/getAll", authMiddleware, userController.getAllUser);
 router.get("/get-detail/:id", authUserMiddleware, userController.getDetailUser);

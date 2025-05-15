@@ -117,6 +117,7 @@ const updateUser = async (req, res) => {
   try {
     const userId = req.params.id;
     const data = req.body;
+    const file = req.file; 
 
     if (!userId) {
       return res.status(400).json({
@@ -125,15 +126,7 @@ const updateUser = async (req, res) => {
       });
     }
 
-    // Nếu đổi mật khẩu thì yêu cầu cả oldPassword và password mới
-    if ((data.oldPassword && !data.password) || (!data.oldPassword && data.password)) {
-      return res.status(400).json({
-        status: "ERR",
-        message: "Both old and new passwords are required to change password",
-      });
-    }
-
-    const response = await UserService.updateUser(userId, data);
+    const response = await UserService.updateUserById(userId, data, file);
 
     return res.status(response.status === "ERR" ? 400 : 200).json(response);
   } catch (e) {
@@ -148,6 +141,7 @@ const adminUpdateUser = async (req, res) => {
   try {
     const userId = req.params.id;
     const data = req.body;
+    const file = req.file; 
 
     if (!userId) {
       return res.status(400).json({
@@ -156,8 +150,31 @@ const adminUpdateUser = async (req, res) => {
       });
     }
 
-    const response = await UserService.adminUpdateUser(userId, data);
+    const response = await UserService.adminUpdateUser(userId, data, file);
     return res.status(200).json(response);
+  } catch (e) {
+    return res.status(500).json({
+      status: "ERR",
+      message: e.message,
+    });
+  }
+};
+
+const changePassword = async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const { oldPassword, newPassword } = req.body;
+
+    if (!oldPassword || !newPassword) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Both old and new passwords are required",
+      });
+    }
+
+    const response = await UserService.changePassword(userId, oldPassword, newPassword);
+
+    return res.status(response.status === "ERR" ? 400 : 200).json(response);
   } catch (e) {
     return res.status(500).json({
       status: "ERR",
@@ -214,7 +231,7 @@ const getDetailUser = async (req, res) => {
         message: "User ID is required",
       });
     }
-    console.log("id", userId);
+    // console.log("id", userId);
     const response = await UserService.getDetailUser(userId);
     return res.status(200).json(response);
   } catch (e) {
@@ -358,6 +375,7 @@ module.exports = {
   adminLoginUser,
   updateUser,
   adminUpdateUser,
+  changePassword,
   debugUser,
   deleteUser,
   getAllUser,
