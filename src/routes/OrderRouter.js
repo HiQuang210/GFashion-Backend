@@ -14,6 +14,5 @@ router.post('/rating/:id', authUserMiddleware, OrderController.ratingOrder)
 router.get('/admin-get-detail/:id', OrderController.adminGetOrderDetail)
 router.get('/admin-get-all', authMiddleware, OrderController.adminAllOrders)
 router.put('/update-status/:id', authMiddleware, OrderController.updateOrderStatus)
-router.get('/search', authMiddleware, OrderController.searchAsAdmin)
 
 module.exports = router

@@ -3,7 +3,6 @@ const User = require("../models/UserModel");
 const Product = require("../models/ProductModel");
 const cloudinary = require("../cloudinary");
 const axios = require("axios");
-const { ObjectId } = require("mongoose").Types;
 
 const uploadSnapshotFromUrl = (imageUrl) => {
   return new Promise(async (resolve, reject) => {
@@ -32,7 +31,7 @@ const uploadSnapshotFromUrl = (imageUrl) => {
 
 const createOrder = (newOrder, userId) => {
   return new Promise(async (resolve, reject) => {
-    const { delivery, address, payment, recipient } = newOrder;
+    const { delivery, address, payment, recipient, note } = newOrder;
 
     try {
       const user = await User.findById(userId);
@@ -101,7 +100,7 @@ const createOrder = (newOrder, userId) => {
             snapshotImage = await uploadSnapshotFromUrl(firstImage);
           } catch (err) {
             console.warn("Failed to snapshot image, fallback to original:", err.message);
-            snapshotImage = firstImage; // fallback nếu snapshot thất bại
+            snapshotImage = firstImage; 
           }
         }
 
@@ -126,6 +125,7 @@ const createOrder = (newOrder, userId) => {
         delivery,
         address,
         payment,
+        note: note || "",
         products: refinedProducts,
       });
 
@@ -141,65 +141,6 @@ const createOrder = (newOrder, userId) => {
         status: "ERROR",
         message: error.message || "Failed to create order",
       });
-    }
-  });
-};
-
-const updateOrder = (id, data) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const checkOrder = await Order.findOne({
-        _id: id,
-      });
-      if (checkOrder === null) {
-        resolve({
-          status: "OK",
-          message: "The Order is not defined!",
-        });
-      }
-      const updatedOrder = await Order.findByIdAndUpdate(id, data, {
-        new: true,
-      });
-      resolve({
-        status: "OK",
-        message: "Success",
-        data: updatedOrder,
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const deleteOrder = (userId, id) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const checkOrder = await Order.findOne({
-        _id: id,
-        userId: userId,
-      });
-      if (checkOrder === null) {
-        return resolve({
-          status: "OK",
-          message: "The Order is not defined or you are not authorized!",
-        });
-      }
-
-      if (checkOrder.status === "pending") {
-        await Order.findByIdAndDelete(id);
-      } else {
-        return resolve({
-          status: "ERROR",
-          message: "The Order is not allowed to delete!",
-        });
-      }
-
-      resolve({
-        status: "OK",
-        message: "Delete Order success",
-      });
-    } catch (e) {
-      reject(e);
     }
   });
 };
@@ -229,7 +170,6 @@ const getAllOrders = (userId) => {
     }
   });
 };
-
 
 const getDetailOrder = (id) => {
   return new Promise(async (resolve, reject) => {
@@ -278,6 +218,7 @@ const adminAllOrders = (page = 1, size = 10) => {
           address: order.address,
           delivery: order.delivery,
           payment: order.payment,
+          note: order.note,
           status: order.status || "pending",
           createdAt: order.createdAt,
           products: order.products.map((p) => ({
@@ -345,6 +286,7 @@ const adminGetOrderDetail = (id) => {
         address: order.address,
         delivery: order.delivery,
         payment: order.payment,
+        note: order.note || "",
         status: order.status || "pending",
         createdAt: order.createdAt,
         products: order.products.map((product) => ({
@@ -393,86 +335,68 @@ const adminGetOrderDetail = (id) => {
 const updateOrderStatus = (id, status) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkOrder = await Order.findOne({
-        _id: id,
-      });
-      if (checkOrder === null) {
+      const order = await Order.findById(id);
+      if (!order) {
         return resolve({
-          status: "OK",
-          message: "The Order is not defined!",
+          status: "ERR",
+          message: "Order not found!",
         });
       }
 
-      checkOrder.status = status;
+      if (["completed", "cancelled"].includes(order.status)) {
+        return resolve({
+          status: "ERR",
+          message: `Cannot update status. Order is already '${order.status}'.`,
+        });
+      }
 
-      await checkOrder.save();
+      if (status === "cancelled") {
+        for (const item of order.products) {
+          const product = await Product.findById(item.productId);
+          if (!product) continue;
+
+          const variant = product.variants.find(v => v.color === item.color);
+          if (!variant) continue;
+
+          const sizeObj = variant.sizes.find(s => s.size === item.size);
+          if (!sizeObj) continue;
+
+          sizeObj.stock += item.quantity;
+          product.sold = Math.max((product.sold || 0) - item.quantity, 0);
+
+          await product.save();
+        }
+      }
+
+      if (status === "completed") {
+        const total = order.products.reduce((acc, item) => {
+          return acc + item.price * item.quantity;
+        }, 0);
+
+        const user = await User.findById(order.userId);
+        if (user) {
+          user.totalSpent = (user.totalSpent || 0) + total;
+          await user.save();
+        }
+      }
+
+      order.status = status;
+      await order.save();
 
       resolve({
         status: "OK",
         message: "Update Order status success",
+        data: {
+          id: order._id,
+          status: order.status,
+        },
       });
     } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const searchAsAdmin = async (query, option, isCompletedIncluded) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const searchedOrders = await Order.find({
-        status:
-          isCompletedIncluded == "false" ? { $ne: "" } : { $ne: "completed" },
-      })
-        .sort({ createdAt: -1 })
-        .populate({
-          path: "userId",
-          select: "phone email",
-        })
-        .populate({
-          path: "products.productId",
-          select: "price",
-        })
-        .then((orders) => {
-          return orders.filter((order) => {
-            if (option === "id") {
-                return order._id.equals(ObjectId.createFromHexString(query));
-            } else if (option === "phone") {
-              return order.userId.phone.match(new RegExp(query, "i"));
-            } else if (option === "email") {
-              return order.userId.email.match(new RegExp(query, "i"));
-            } else {
-              return order;
-            }
-          });
-        });
-
-      const addedTotalAllOrders = searchedOrders.map((order) => {
-        const total = order.products.reduce((acc, product) => {
-          return acc + product.productId.price * product.quantity;
-        }, 0);
-        return {
-          ...order._doc,
-          total,
-        };
+      console.error("updateOrderStatus error:", e);
+      reject({
+        status: "ERR",
+        message: e.message || "Failed to update order status",
       });
-
-      const refinedSearchedOrders = addedTotalAllOrders.map((order) => ({
-        id: order._id,
-        customerPhone: order.userId.phone,
-        customerEmail: order.userId.email,
-        total: order.total + (order.delivery === "standard" ? 30000 : 50000),
-        date: order.createdAt,
-        status: order.status,
-      }));
-
-      resolve({
-        status: "OK",
-        message: "Search orders success",
-        data: refinedSearchedOrders,
-      });
-    } catch (e) {
-      reject(e);
     }
   });
 };
@@ -519,6 +443,65 @@ const ratingOrder = async (orderId, ratings) => {
   });
 };
 
+const updateOrder = (id, data) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const checkOrder = await Order.findOne({
+        _id: id,
+      });
+      if (checkOrder === null) {
+        resolve({
+          status: "OK",
+          message: "The Order is not defined!",
+        });
+      }
+      const updatedOrder = await Order.findByIdAndUpdate(id, data, {
+        new: true,
+      });
+      resolve({
+        status: "OK",
+        message: "Success",
+        data: updatedOrder,
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
+const deleteOrder = (userId, id) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const checkOrder = await Order.findOne({
+        _id: id,
+        userId: userId,
+      });
+      if (checkOrder === null) {
+        return resolve({
+          status: "OK",
+          message: "The Order is not defined or you are not authorized!",
+        });
+      }
+
+      if (checkOrder.status === "pending") {
+        await Order.findByIdAndDelete(id);
+      } else {
+        return resolve({
+          status: "ERROR",
+          message: "The Order is not allowed to delete!",
+        });
+      }
+
+      resolve({
+        status: "OK",
+        message: "Delete Order success",
+      });
+    } catch (e) {
+      reject(e);
+    }
+  });
+};
+
 module.exports = {
   createOrder,
   updateOrder,
@@ -528,6 +511,5 @@ module.exports = {
   adminAllOrders,
   adminGetOrderDetail,
   updateOrderStatus,
-  searchAsAdmin,
   ratingOrder,
 };

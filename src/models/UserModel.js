@@ -20,6 +20,7 @@ const userSchema = new mongoose.Schema(
         quantity: { type: Number, default: 1 },
       },
     ],
+    totalSpent: { type: Number, default: 0 },
   },
   {
     timestamps: true,

@@ -138,6 +138,7 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
           cartSize: checkUser.cart?.length || 0,
           isAdmin: checkUser.isAdmin,
           isActive: checkUser.isActive,
+          totalSpent: checkUser.totalSpent || 0,  
           createdAt: checkUser.createdAt, 
         },
       });
