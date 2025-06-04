@@ -21,6 +21,17 @@ const userSchema = new mongoose.Schema(
       },
     ],
     totalSpent: { type: Number, default: 0 },
+    // Password reset fields
+    resetPasswordCode: { 
+      type: String, 
+      required: false,
+      default: undefined 
+    },
+    resetPasswordExpiry: { 
+      type: Date, 
+      required: false,
+      default: undefined 
+    },
   },
   {
     timestamps: true,

@@ -253,6 +253,79 @@ const changePassword = async (req, res) => {
   }
 };
 
+const requestPasswordReset = async (req, res) => {
+  try {
+    const { email } = req.body;
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    if (!email || !isValidEmail) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Please enter a valid email address",
+      });
+    }
+
+    const response = await UserService.requestPasswordReset(email);
+    
+    return res.status(response.status === "ERR" ? 400 : 200).json(response);
+  } catch (e) {
+    return res.status(500).json({
+      status: "ERR",
+      message: e.message,
+    });
+  }
+};
+
+const verifyResetCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Email and verification code are required",
+      });
+    }
+
+    const response = await UserService.verifyResetCode(email, code);
+    
+    return res.status(response.status === "ERR" ? 400 : 200).json(response);
+  } catch (e) {
+    return res.status(500).json({
+      status: "ERR",
+      message: e.message,
+    });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+    
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Email, verification code, and new password are required",
+      });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({
+        status: "ERR",
+        message: "Password must be at least 6 characters long",
+      });
+    }
+
+    const response = await UserService.resetPassword(email, code, newPassword);
+    
+    return res.status(response.status === "ERR" ? 400 : 200).json(response);
+  } catch (e) {
+    return res.status(500).json({
+      status: "ERR",
+      message: e.message,
+    });
+  }
+};
+
 const deleteUser = async (req, res) => {
   try {
     const userId = req.params.id;
@@ -449,6 +522,9 @@ module.exports = {
   updateUser,
   adminUpdateUser,
   changePassword,
+  requestPasswordReset,
+  verifyResetCode,
+  resetPassword,
   debugUser,
   deleteUser,
   getAllUser,

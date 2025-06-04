@@ -3,6 +3,7 @@ const Product = require("../models/ProductModel");
 const Order = require("../models/OrderModel");
 const bcrypt = require("bcrypt");
 const cloudinary = require("../cloudinary");
+const nodemailer = require("nodemailer");
 const { generalAccessToken, generalRefreshToken } = require("./JwtService");
 
 const createUser = (newUser) => {
@@ -251,6 +252,165 @@ const changePassword = async (id, oldPassword, newPassword) => {
     return {
       status: "ERR",
       message: error.message,
+    };
+  }
+};
+
+const requestPasswordReset = async (email) => {
+  try {
+    // Check if user exists
+    const user = await User.findOne({ email });
+    if (!user) {
+      return {
+        status: "ERR",
+        message: "No account found with this email address",
+      };
+    }
+
+    if (!user.isActive) {
+      return {
+        status: "ERR",
+        message: "Account is deactivated, please contact support",
+      };
+    }
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    user.resetPasswordCode = resetCode;
+    user.resetPasswordExpiry = resetCodeExpiry;
+    await user.save();
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
+    });
+
+    const emailHTML = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background-color: #f8f9fa; padding: 30px; border-radius: 10px; text-align: center;">
+          <h2 style="color: #333; margin-bottom: 20px;">Password Reset Request</h2>
+          <p style="color: #666; margin-bottom: 30px;">
+            You requested to reset your password. Use the verification code below:
+          </p>
+          <div style="background-color: #007bff; color: white; padding: 20px; border-radius: 8px; font-size: 32px; font-weight: bold; letter-spacing: 4px; margin: 20px 0;">
+            ${resetCode}
+          </div>
+          <p style="color: #666; font-size: 14px; margin-top: 20px;">
+            This code will expire in 15 minutes.
+          </p>
+          <p style="color: #666; font-size: 14px;">
+            If you didn't request this password reset, please ignore this email.
+          </p>
+        </div>
+      </div>
+    `;
+
+    await transporter.sendMail({
+      from: `"GFashion" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Password Reset Verification Code",
+      html: emailHTML,
+    });
+
+    return {
+      status: "OK",
+      message: "Verification code sent to your email address",
+    };
+  } catch (error) {
+    console.error("Password reset request error:", error);
+    return {
+      status: "ERR",
+      message: "Failed to send verification code",
+    };
+  }
+};
+
+const verifyResetCode = async (email, code) => {
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return {
+        status: "ERR",
+        message: "No account found with this email address",
+      };
+    }
+
+    if (!user.resetPasswordCode || !user.resetPasswordExpiry) {
+      return {
+        status: "ERR",
+        message: "No reset code found. Please request a new one.",
+      };
+    }
+
+    if (new Date() > user.resetPasswordExpiry) {
+      user.resetPasswordCode = undefined;
+      user.resetPasswordExpiry = undefined;
+      await user.save();
+      
+      return {
+        status: "ERR",
+        message: "Verification code has expired. Please request a new one.",
+      };
+    }
+
+    if (user.resetPasswordCode !== code) {
+      return {
+        status: "ERR",
+        message: "Invalid verification code",
+      };
+    }
+
+    return {
+      status: "OK",
+      message: "Verification code is valid",
+    };
+  } catch (error) {
+    console.error("Verify reset code error:", error);
+    return {
+      status: "ERR",
+      message: "Failed to verify code",
+    };
+  }
+};
+
+const resetPassword = async (email, code, newPassword) => {
+  try {
+    const user = await User.findOne({ email });
+    if (!user) {
+      return {
+        status: "ERR",
+        message: "No account found with this email address",
+      };
+    }
+
+    const verifyResult = await verifyResetCode(email, code);
+    if (verifyResult.status === "ERR") {
+      return verifyResult;
+    }
+
+    const hashedPassword = bcrypt.hashSync(newPassword, 10);
+
+    user.password = hashedPassword;
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpiry = undefined;
+    await user.save();
+
+    return {
+      status: "OK",
+      message: "Password reset successfully",
+    };
+  } catch (error) {
+    console.error("Reset password error:", error);
+    return {
+      status: "ERR",
+      message: "Failed to reset password",
     };
   }
 };
@@ -615,6 +775,9 @@ module.exports = {
   updateUser,
   adminUpdateUser,
   changePassword,
+  requestPasswordReset,
+  verifyResetCode,
+  resetPassword,
   deleteUser,
   getAllUser,
   getDetailUser,

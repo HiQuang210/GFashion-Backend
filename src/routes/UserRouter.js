@@ -14,6 +14,9 @@ router.put("/change-password/:id", authUserMiddleware, userController.changePass
 router.delete("/delete-user/:id", authMiddleware, userController.deleteUser);
 router.get("/getAll", authMiddleware, userController.getAllUser);
 router.get("/get-detail/:id", authUserMiddleware, userController.getDetailUser);
+router.post("/request-password-reset", userController.requestPasswordReset);
+router.post("/verify-reset-code", userController.verifyResetCode);
+router.post("/reset-password", userController.resetPassword);
 
 // favorite
 router.get(
