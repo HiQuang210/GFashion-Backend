@@ -1,5 +1,7 @@
 const UserService = require("../services/UserService");
 const JwtService = require("../services/JwtService");
+const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 const User = require("../models/UserModel");
 
 const createUser = async (req, res) => {
@@ -31,6 +33,74 @@ const createUser = async (req, res) => {
     return res.status(response.status === "ERR" ? 400 : 200).json(response);
   } catch (e) {
     return res.status(500).json({ message: e.message });
+  }
+};
+
+const requestEmailVerification = async (req, res) => {
+  try {
+    const { email, password, phone, firstName, lastName } = req.body;
+    const isValidEmail = /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email);
+        console.log("SERVER_URL:", process.env.SERVER_URL);
+    if (!email || !password || !phone || !isValidEmail) {
+      return res.status(400).json({ status: "ERR", message: "Invalid input" });
+    }
+
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      return res.status(400).json({ status: "ERR", message: "Email already exists" });
+    }
+
+    const token = jwt.sign(
+      { email, password, phone, firstName, lastName },
+      process.env.EMAIL_SECRET,
+      { expiresIn: "15m" }
+    );
+
+    const verifyLink = `${process.env.SERVER_URL}/api/user/verify-email?token=${token}`;
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+      tls: {
+        rejectUnauthorized: false, 
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"GFashion" <${process.env.EMAIL_USER}>`,
+      to: email,
+      subject: "Verify your email",
+      html: `<p>Click <a href="${verifyLink}">here</a> to verify your email.</p>`,
+    });
+
+    return res.status(200).json({ status: "OK", message: "Verification email sent" });
+  } catch (e) {
+    return res.status(500).json({ status: "ERR", message: e.message });
+  }
+};
+
+const verifyEmail = async (req, res) => {
+  try {
+    const { token } = req.query;
+    if (!token) {
+      return res.status(400).json({ status: "ERR", message: "Missing token" });
+    }
+
+    const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
+
+    const response = await UserService.createUser({
+      email: decoded.email,
+      password: decoded.password,
+      phone: decoded.phone,
+      firstName: decoded.firstName,
+      lastName: decoded.lastName,
+    });
+
+    return res.status(response.status === "ERR" ? 400 : 200).json(response);
+  } catch (e) {
+    return res.status(400).json({ status: "ERR", message: "Invalid or expired token" });
   }
 };
 
@@ -372,6 +442,8 @@ const getDashboard = async (req, res) => {
 
 module.exports = {
   createUser,
+  requestEmailVerification,
+  verifyEmail,
   loginUser,
   adminLoginUser,
   updateUser,

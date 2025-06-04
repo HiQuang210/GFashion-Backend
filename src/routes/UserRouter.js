@@ -39,4 +39,9 @@ router.post("/refresh-token", userController.refreshToken);
 
 router.get("/get-dashboard", authMiddleware, userController.getDashboard);
 
+// Gửi email xác thực trước khi tạo user
+router.post("/request-email-verification", userController.requestEmailVerification);
+
+// Người dùng click link xác thực
+router.get("/verify-email", userController.verifyEmail);
 module.exports = router;
