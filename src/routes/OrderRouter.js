@@ -8,7 +8,6 @@ router.post('/create', authUserMiddleware, OrderController.createOrder)
 router.delete('/cancel/:id', authUserMiddleware, OrderController.deleteOrder)
 router.get('/get-all', authUserMiddleware, OrderController.getAllOrders)
 router.get('/get-detail/:id', OrderController.getDetailOrder)
-router.post('/rating/:id', authUserMiddleware, OrderController.ratingOrder)
 
 // admin
 router.get('/admin-get-detail/:id', OrderController.adminGetOrderDetail)

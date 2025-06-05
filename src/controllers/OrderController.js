@@ -114,26 +114,6 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-const ratingOrder = async (req, res) => {
-  try {
-    const OrderId = req.params.id;
-    const { ratings } = req.body;
-    console.log(ratings);
-    if (!OrderId) {
-      return res.status(200).json({
-        status: "ERR",
-        message: "Order ID is required",
-      });
-    }
-    const response = await OrderService.ratingOrder(OrderId, ratings);
-    return res.status(200).json(response);
-  } catch (e) {
-    return res.status(404).json({
-      message: e.message,
-    });
-  }
-};
-
 const updateOrder = async (req, res) => {
   try {
     const OrderId = req.params.id;
@@ -181,5 +161,4 @@ module.exports = {
   adminAllOrders,
   adminGetOrderDetail,
   updateOrderStatus,
-  ratingOrder,
 };

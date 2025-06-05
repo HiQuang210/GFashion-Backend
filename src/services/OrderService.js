@@ -401,48 +401,6 @@ const updateOrderStatus = (id, status) => {
   });
 };
 
-const ratingOrder = async (orderId, ratings) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const order = await Order.findOne({
-        _id: orderId,
-      });
-      if (order === null) {
-        return resolve({
-          status: "OK",
-          message: "The Order is not defined!",
-        });
-      }
-
-      order.rated = true;
-      await order.save();
-
-      if (ratings && Array.isArray(ratings)) {
-        ratings.map(async (rating) => {
-          const product = await Product.findOne({
-            _id: rating.productId,
-          });
-          console.log(product);
-          if (product) {
-            const sold = product.sold;
-            const oldRating = product.rating;
-            const newRating = (oldRating * (sold - 1) + rating.rating) / sold;
-            product.rating = newRating;
-            await product.save();
-          }
-        });
-      }
-
-      resolve({
-        status: "OK",
-        message: "Rating Order success",
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
 const updateOrder = (id, data) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -511,5 +469,4 @@ module.exports = {
   adminAllOrders,
   adminGetOrderDetail,
   updateOrderStatus,
-  ratingOrder,
 };

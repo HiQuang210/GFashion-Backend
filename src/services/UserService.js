@@ -258,7 +258,6 @@ const changePassword = async (id, oldPassword, newPassword) => {
 
 const requestPasswordReset = async (email) => {
   try {
-    // Check if user exists
     const user = await User.findOne({ email });
     if (!user) {
       return {
@@ -275,7 +274,7 @@ const requestPasswordReset = async (email) => {
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); 
 
     user.resetPasswordCode = resetCode;
     user.resetPasswordExpiry = resetCodeExpiry;

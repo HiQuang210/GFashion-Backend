@@ -85,7 +85,9 @@ const verifyEmail = async (req, res) => {
   try {
     const { token } = req.query;
     if (!token) {
-      return res.status(400).json({ status: "ERR", message: "Missing token" });
+      return res.status(400).send(`
+        <h2 style="color: red; font-family: sans-serif;">Missing token</h2>
+      `);
     }
 
     const decoded = jwt.verify(token, process.env.EMAIL_SECRET);
@@ -98,9 +100,22 @@ const verifyEmail = async (req, res) => {
       lastName: decoded.lastName,
     });
 
-    return res.status(response.status === "ERR" ? 400 : 200).json(response);
+    if (response.status === "ERR") {
+      return res.status(400).send(`
+        <h2 style="color: red; font-family: sans-serif;">${response.message}</h2>
+      `);
+    }
+
+    return res.send(`
+      <div style="font-family: sans-serif; max-width: 500px; margin: 50px auto; text-align: center;">
+        <h2 style="color: green;">🎉 Email verification successful!</h2>
+        <p>You can now login to our app with your new account.</p>
+      </div>
+    `);
   } catch (e) {
-    return res.status(400).json({ status: "ERR", message: "Invalid or expired token" });
+    return res.status(400).send(`
+      <h2 style="color: red; font-family: sans-serif;">Invalid or expired token</h2>
+    `);
   }
 };
 

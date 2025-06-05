@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const Product = require("../models/ProductModel");
+const Review = require("../models/ReviewModel");
 const cloudinary = require("../cloudinary");
 const User = require('../models/UserModel'); 
 
@@ -43,6 +44,35 @@ const deleteImageFromCloudinary = (imageUrl) => {
   });
 };
 
+// Helper function to calculate actual rating from reviews
+const calculateProductRatingFromReviews = async (productId) => {
+  try {
+    const reviews = await Review.aggregate([
+      { $unwind: "$productReviews" },
+      { $match: { "productReviews.productId": new mongoose.Types.ObjectId(productId) } },
+      {
+        $group: {
+          _id: "$productReviews.productId",
+          averageRating: { $avg: "$productReviews.rating" },
+          totalReviews: { $sum: 1 },
+        },
+      },
+    ]);
+
+    if (reviews.length > 0) {
+      return {
+        rating: Math.round(reviews[0].averageRating * 10) / 10, // Round to 1 decimal place
+        reviewCount: reviews[0].totalReviews
+      };
+    }
+    
+    return { rating: 0, reviewCount: 0 };
+  } catch (error) {
+    console.error("Error calculating product rating from reviews:", error);
+    return { rating: 0, reviewCount: 0 };
+  }
+};
+
 const createProduct = (newProduct, files) => {
   return new Promise(async (resolve, reject) => {
     const {
@@ -50,7 +80,6 @@ const createProduct = (newProduct, files) => {
       type,
       price,
       variants,
-      rating,
       description,
       material,
       producer,
@@ -76,7 +105,7 @@ const createProduct = (newProduct, files) => {
         price,
         producer,
         variants,
-        rating,
+        rating: 0, 
         description,
         material,
       });
@@ -135,7 +164,45 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
 
       const totalProduct = await Product.countDocuments(objectFilter);
 
-      const pipeline = [{ $match: objectFilter }];
+      const pipeline = [
+        { $match: objectFilter },
+        {
+          $lookup: {
+            from: "reviews",
+            let: { productId: "$_id" },
+            pipeline: [
+              { $unwind: "$productReviews" },
+              { $match: { $expr: { $eq: ["$productReviews.productId", "$$productId"] } } },
+              {
+                $group: {
+                  _id: "$productReviews.productId",
+                  averageRating: { $avg: "$productReviews.rating" },
+                  reviewCount: { $sum: 1 }
+                }
+              }
+            ],
+            as: "reviewData"
+          }
+        },
+        {
+          $addFields: {
+            actualRating: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $round: [{ $arrayElemAt: ["$reviewData.averageRating", 0] }, 1] },
+                else: 0
+              }
+            },
+            reviewCount: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $arrayElemAt: ["$reviewData.reviewCount", 0] },
+                else: 0
+              }
+            }
+          }
+        }
+      ];
 
       pipeline.push({ $sort: objectSort });
 
@@ -150,6 +217,8 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
             price: 1,
             variants: 1,
             sold: 1,
+            rating: "$actualRating", // Use calculated rating from reviews
+            reviewCount: 1,
             createdAt: 1,
             updatedAt: 1, 
           },
@@ -175,9 +244,87 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
 const getDetailProduct = (id) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const product = await Product.findOne({ _id: id }).select(
-        "name images type price producer variants rating description material createdAt updatedAt sold"
-      );
+      const pipeline = [
+        { $match: { _id: new mongoose.Types.ObjectId(id) } },
+        {
+          $lookup: {
+            from: "reviews",
+            let: { productId: "$_id" },
+            pipeline: [
+              { $unwind: "$productReviews" },
+              { $match: { $expr: { $eq: ["$productReviews.productId", "$$productId"] } } },
+              {
+                $group: {
+                  _id: "$productReviews.productId",
+                  averageRating: { $avg: "$productReviews.rating" },
+                  reviewCount: { $sum: 1 },
+                  ratings: { $push: "$productReviews.rating" }
+                }
+              }
+            ],
+            as: "reviewData"
+          }
+        },
+        {
+          $addFields: {
+            actualRating: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $round: [{ $arrayElemAt: ["$reviewData.averageRating", 0] }, 1] },
+                else: 0
+              }
+            },
+            reviewCount: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $arrayElemAt: ["$reviewData.reviewCount", 0] },
+                else: 0
+              }
+            },
+            ratingDistribution: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: {
+                  $let: {
+                    vars: {
+                      ratings: { $arrayElemAt: ["$reviewData.ratings", 0] }
+                    },
+                    in: {
+                      5: { $size: { $filter: { input: "$$ratings", cond: { $eq: ["$$this", 5] } } } },
+                      4: { $size: { $filter: { input: "$$ratings", cond: { $eq: ["$$this", 4] } } } },
+                      3: { $size: { $filter: { input: "$$ratings", cond: { $eq: ["$$this", 3] } } } },
+                      2: { $size: { $filter: { input: "$$ratings", cond: { $eq: ["$$this", 2] } } } },
+                      1: { $size: { $filter: { input: "$$ratings", cond: { $eq: ["$$this", 1] } } } }
+                    }
+                  }
+                },
+                else: { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 }
+              }
+            }
+          }
+        },
+        {
+          $project: {
+            name: 1,
+            images: 1,
+            type: 1,
+            price: 1,
+            producer: 1,
+            variants: 1,
+            rating: "$actualRating", // Use calculated rating from reviews
+            reviewCount: 1,
+            ratingDistribution: 1,
+            description: 1,
+            material: 1,
+            createdAt: 1,
+            updatedAt: 1,
+            sold: 1
+          }
+        }
+      ];
+
+      const products = await Product.aggregate(pipeline);
+      const product = products.length > 0 ? products[0] : null;
 
       if (!product) {
         return resolve({
@@ -241,6 +388,9 @@ const updateProduct = (id, data, files) => {
         updatedImages.push(...newImageUrls);
       }
 
+      // Get current rating from reviews (don't update rating manually)
+      const ratingData = await calculateProductRatingFromReviews(id);
+
       const updatedProduct = await Product.findByIdAndUpdate(
         id,
         {
@@ -252,6 +402,7 @@ const updateProduct = (id, data, files) => {
           description,
           material,
           images: updatedImages,
+          rating: ratingData.rating, // Update with calculated rating
           updatedAt: new Date(), 
         },
         { new: true }
@@ -260,7 +411,10 @@ const updateProduct = (id, data, files) => {
       resolve({
         status: "OK",
         message: "Update product success",
-        data: updatedProduct,
+        data: {
+          ...updatedProduct.toObject(),
+          reviewCount: ratingData.reviewCount
+        },
       });
     } catch (error) {
       reject(error);
@@ -324,9 +478,63 @@ const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
         objectFilter.name = { $regex: searchQuery, $options: "i" };
       }
 
-      const pipeline = [{ $match: objectFilter }];
+      const pipeline = [
+        { $match: objectFilter },
+        {
+          $lookup: {
+            from: "reviews",
+            let: { productId: "$_id" },
+            pipeline: [
+              { $unwind: "$productReviews" },
+              { $match: { $expr: { $eq: ["$productReviews.productId", "$$productId"] } } },
+              {
+                $group: {
+                  _id: "$productReviews.productId",
+                  averageRating: { $avg: "$productReviews.rating" },
+                  reviewCount: { $sum: 1 }
+                }
+              }
+            ],
+            as: "reviewData"
+          }
+        },
+        {
+          $addFields: {
+            actualRating: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $round: [{ $arrayElemAt: ["$reviewData.averageRating", 0] }, 1] },
+                else: 0
+              }
+            },
+            reviewCount: {
+              $cond: {
+                if: { $gt: [{ $size: "$reviewData" }, 0] },
+                then: { $arrayElemAt: ["$reviewData.reviewCount", 0] },
+                else: 0
+              }
+            },
+            stock: {
+              $sum: {
+                $map: {
+                  input: "$variants",
+                  as: "variant",
+                  in: {
+                    $sum: "$$variant.sizes.stock",
+                  },
+                },
+              },
+            }
+          }
+        }
+      ];
 
       if (Object.keys(objectSort).length > 0) {
+        // Replace rating sort with actualRating
+        if (objectSort.rating) {
+          delete objectSort.rating;
+          objectSort.actualRating = -1;
+        }
         pipeline.push({ $sort: objectSort });
       }
 
@@ -344,7 +552,8 @@ const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
             name: 1,
             type: 1,
             price: 1,
-            rating: 1,
+            rating: "$actualRating", // Use calculated rating
+            reviewCount: 1,
             description: 1,
             material: 1,
             producer: 1,
@@ -354,17 +563,7 @@ const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
             updatedAt: 1,
             images: 1,
             variants: 1,
-            stock: {
-              $sum: {
-                $map: {
-                  input: "$variants",
-                  as: "variant",
-                  in: {
-                    $sum: "$$variant.sizes.stock",
-                  },
-                },
-              },
-            },
+            stock: 1,
           },
         }
       );
@@ -422,6 +621,10 @@ const deleteProduct = (ids) => {
         { $pull: { cart: { product: { $in: validIds } } } }
       );
 
+      await Review.deleteMany({
+        "productReviews.productId": { $in: validIds }
+      });
+
       if (imageUrls.length > 0) {
         await Promise.all(imageUrls.map(deleteImageFromCloudinary));
       }
@@ -444,6 +647,33 @@ const deleteProduct = (ids) => {
   });
 };
 
+const syncAllProductRatings = () => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const products = await Product.find({}, '_id');
+      
+      for (const product of products) {
+        const ratingData = await calculateProductRatingFromReviews(product._id);
+        await Product.findByIdAndUpdate(product._id, {
+          rating: ratingData.rating
+        });
+      }
+
+      resolve({
+        status: "OK",
+        message: `Successfully synced ratings for ${products.length} products`,
+        data: { updatedCount: products.length }
+      });
+    } catch (error) {
+      console.error('Sync ratings error:', error);
+      reject({
+        status: "ERR",
+        message: error.message || "Failed to sync product ratings"
+      });
+    }
+  });
+};
+
 module.exports = {
   createProduct,
   updateProduct,
@@ -452,4 +682,6 @@ module.exports = {
   getTotalPages,
   getDetailProduct,
   adminAllProducts,
+  syncAllProductRatings,
+  calculateProductRatingFromReviews,
 };
