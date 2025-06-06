@@ -3,6 +3,7 @@ const Product = require("../models/ProductModel");
 const Review = require("../models/ReviewModel");
 const cloudinary = require("../cloudinary");
 const User = require('../models/UserModel'); 
+const Order = require('../models/OrderModel'); 
 
 const uploadProductImageToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -44,7 +45,6 @@ const deleteImageFromCloudinary = (imageUrl) => {
   });
 };
 
-// Helper function to calculate actual rating from reviews
 const calculateProductRatingFromReviews = async (productId) => {
   try {
     const reviews = await Review.aggregate([
@@ -609,22 +609,25 @@ const deleteProduct = (ids) => {
 
       const imageUrls = products.flatMap(p => p.images || []);
       
+      // Delete the products
       await Product.deleteMany({ _id: { $in: validIds } });
       
+      // Remove products from user favorites
       await User.updateMany(
         { favorite: { $in: validIds }, isAdmin: { $ne: true } },
         { $pull: { favorite: { $in: validIds } } }
       );
 
+      // Remove products from user carts
       await User.updateMany(
         { "cart.product": { $in: validIds }, isAdmin: { $ne: true } },
         { $pull: { cart: { product: { $in: validIds } } } }
       );
 
-      await Review.deleteMany({
-        "productReviews.productId": { $in: validIds }
-      });
+      // Handle review cleanup more precisely
+      await handleReviewCleanup(validIds);
 
+      // Clean up images from cloud storage
       if (imageUrls.length > 0) {
         await Promise.all(imageUrls.map(deleteImageFromCloudinary));
       }
@@ -645,6 +648,60 @@ const deleteProduct = (ids) => {
       });
     }
   });
+};
+
+const handleReviewCleanup = async (deletedProductIds) => {
+  try {
+    const reviewsWithDeletedProducts = await Review.find({
+      "productReviews.productId": { $in: deletedProductIds }
+    });
+
+    for (const review of reviewsWithDeletedProducts) {
+      const updatedProductReviews = review.productReviews.filter(
+        pr => !deletedProductIds.some(id => id.toString() === pr.productId.toString())
+      );
+
+      await Review.findByIdAndUpdate(review._id, {
+        productReviews: updatedProductReviews
+      });
+    }
+
+    const remainingReviews = await Review.find({});
+    const productRatingUpdates = new Map();
+
+    for (const review of remainingReviews) {
+      for (const productReview of review.productReviews) {
+        const productId = productReview.productId.toString();
+        if (!productRatingUpdates.has(productId)) {
+          productRatingUpdates.set(productId, []);
+        }
+        productRatingUpdates.get(productId).push(productReview.rating);
+      }
+    }
+
+    for (const [productId, ratings] of productRatingUpdates) {
+      const avgRating = ratings.reduce((sum, r) => sum + r, 0) / ratings.length;
+      await Product.findByIdAndUpdate(productId, {
+        rating: Number(avgRating.toFixed(1)),
+        reviewCount: ratings.length
+      });
+    }
+
+    const productsWithoutReviews = await Product.find({
+      _id: { $nin: Array.from(productRatingUpdates.keys()) }
+    });
+
+    for (const product of productsWithoutReviews) {
+      await Product.findByIdAndUpdate(product._id, {
+        rating: 0,
+        reviewCount: 0
+      });
+    }
+
+  } catch (error) {
+    console.error('Error handling review cleanup:', error);
+    throw error;
+  }
 };
 
 const syncAllProductRatings = () => {
@@ -678,6 +735,7 @@ module.exports = {
   createProduct,
   updateProduct,
   deleteProduct,
+  handleReviewCleanup,
   getAllProduct,
   getTotalPages,
   getDetailProduct,

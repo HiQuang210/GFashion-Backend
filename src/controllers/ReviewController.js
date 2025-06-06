@@ -174,19 +174,32 @@ const updateReview = async (req, res) => {
 
 const getAllReviews = async (req, res) => {
   try {
-    const { page = 1, limit = 10 } = req.query;
-    const response = await ReviewService.getAllReviews(page, limit);
+    const { 
+      page = 1, 
+      limitItem = 10,  
+      sort = '-createdAt', 
+      filter = '', 
+      searchQuery = '' 
+    } = req.query;
+
+    const response = await ReviewService.getAllReviews(
+      page, 
+      limitItem, 
+      sort, 
+      filter, 
+      searchQuery
+    );
+    
     return res.status(200).json(response);
   } catch (error) {
     console.error("getAllReviews controller error:", error);
     return res.status(500).json({
       status: "ERR",
-      message: "Internal server error",
+      message: error.message || "Internal server error",
     });
   }
 };
 
-// Delete a review
 const deleteReview = async (req, res) => {
   try {
     const { reviewId } = req.params;

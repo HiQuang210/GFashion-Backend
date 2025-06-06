@@ -1,5 +1,7 @@
 const Order = require("../models/OrderModel");
 const ExcelJS = require("exceljs");
+const User = require("../models/UserModel");
+const Product = require('../models/ProductModel');
 
 const calculateRevenueFromOrders = async (year) => {
   try {
@@ -220,9 +222,147 @@ const getRevenueStats = async (req, res) => {
   }
 };
 
+const calculateUsersFromDatabase = async (year) => {
+  try {
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+    
+    const users = await User.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).lean();
+
+    const monthlyUsers = {};
+    const months = [
+      "January", "February", "March", "April", "May", "June",
+      "July", "August", "September", "October", "November", "December"
+    ];
+
+    months.forEach(month => {
+      monthlyUsers[month] = 0;
+    });
+
+    // Count users for each month
+    users.forEach(user => {
+      const userMonth = new Date(user.createdAt).toLocaleString('en-US', { month: 'long' });
+      monthlyUsers[userMonth]++;
+    });
+
+    const usersData = months.map(month => ({
+      month,
+      userCount: monthlyUsers[month]
+    }));
+
+    return usersData;
+  } catch (error) {
+    throw new Error(`Failed to calculate users: ${error.message}`);
+  }
+};
+
+const getUsers = async (req, res) => {
+  try {
+    const { year = "2025" } = req.query;
+    
+    const usersData = await calculateUsersFromDatabase(year);
+    const totalUsers = usersData.reduce((sum, data) => sum + data.userCount, 0);
+
+    return res.status(200).json({
+      status: "OK",
+      message: "Monthly users data retrieved successfully",
+      data: usersData,
+      totalUsers: totalUsers,
+      year: year,
+      calculatedAt: new Date().toISOString()
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "ERROR",
+      message: error.message,
+    });
+  }
+};
+
+const getUsersStats = async (req, res) => {
+  try {
+    const { year = "2025" } = req.query;
+    
+    const startDate = new Date(`${year}-01-01`);
+    const endDate = new Date(`${year}-12-31T23:59:59.999Z`);
+
+    const yearUsers = await User.find({
+      createdAt: {
+        $gte: startDate,
+        $lte: endDate
+      }
+    }).lean();
+
+    const totalUsers = yearUsers.length;
+
+    // Get current month users
+    const currentMonth = new Date().getMonth();
+    const currentMonthStart = new Date(year, currentMonth, 1);
+    const currentMonthEnd = new Date(year, currentMonth + 1, 0, 23, 59, 59, 999);
+
+    const currentMonthUsers = yearUsers.filter(user => {
+      const userDate = new Date(user.createdAt);
+      return userDate >= currentMonthStart && userDate <= currentMonthEnd;
+    });
+
+    const averageUsersPerMonth = totalUsers > 0 ? totalUsers / 12 : 0;
+
+    return res.status(200).json({
+      status: "OK",
+      message: "User statistics retrieved successfully",
+      data: {
+        year: year,
+        totalUsers: totalUsers,
+        currentMonthUsers: currentMonthUsers.length,
+        averageUsersPerMonth: Math.round(averageUsersPerMonth * 100) / 100,
+        calculatedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "ERROR",
+      message: error.message,
+    });
+  }
+};
+
+const getTotalUsers = async (req, res) => {
+  try {
+    const totalUsers = await User.countDocuments();
+    const activeUsers = await User.countDocuments({ isActive: true });
+    const adminUsers = await User.countDocuments({ isAdmin: true });
+
+    return res.status(200).json({
+      status: "OK",
+      message: "Total users retrieved successfully",
+      data: {
+        totalUsers: totalUsers,
+        activeUsers: activeUsers,
+        adminUsers: adminUsers,
+        inactiveUsers: totalUsers - activeUsers,
+        calculatedAt: new Date().toISOString()
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: "ERROR",
+      message: error.message,
+    });
+  }
+};
+
+
 module.exports = { 
   exportRevenue, 
   getRevenue, 
   getRevenueStats,
-  calculateRevenueFromOrders 
+  calculateRevenueFromOrders,
+  getUsers,
+  getUsersStats,
+  getTotalUsers 
 };

@@ -23,7 +23,6 @@ const createReview = (reviewData) => {
       let review = await Review.findOne({ orderId });
 
       if (!review) {
-        // Create new review
         review = await Review.create({
           orderId,
           userId,
@@ -252,23 +251,224 @@ const getUserReviews = (userId, page = 1, limit = 10) => {
     }
   });
 };
+// Helper function to build base query filters
+const buildBaseQuery = (filter) => {
+  let query = {};
+  
+  // Handle rating filter - "greater than or equal to" logic
+  if (filter && !isNaN(filter)) {
+    const rating = Number(filter);
+    if (rating >= 1 && rating <= 5) {
+      query.overallRating = { $gte: rating };
+    }
+  }
+  
+  return query;
+};
+
+// Helper function to build sort object
+const buildSortObject = (sort) => {
+  let sortObject = {};
+  if (sort.startsWith('-')) {
+    sortObject[sort.substring(1)] = -1; // Descending
+  } else {
+    sortObject[sort] = 1; // Ascending
+  }
+  return sortObject;
+};
+
+// Helper function for simple search without populated fields
+const performSimpleSearch = async (searchQuery, baseQuery, sortObject, skip, limitItems) => {
+  const searchRegex = new RegExp(searchQuery.trim(), 'i');
+  
+  const query = {
+    ...baseQuery,
+    $or: [
+      { overallComment: searchRegex },
+      { 'productReviews.comment': searchRegex }
+    ]
+  };
+
+  const reviews = await Review.find(query)
+    .populate("userId", "firstName lastName email img")
+    .populate("orderId", "recipient address createdAt")
+    .populate("productReviews.productId", "name images type producer price")
+    .sort(sortObject)
+    .skip(skip)
+    .limit(limitItems);
+
+  const totalReviews = await Review.countDocuments(query);
+
+  return { reviews, totalReviews };
+};
+
+// Helper function for complex search with populated fields using aggregation
+const performComplexSearch = async (searchQuery, filter, sortObject, skip, limitItems) => {
+  const searchRegex = new RegExp(searchQuery.trim(), 'i');
+  
+  // Build match conditions
+  const matchConditions = [
+    // Rating filter
+    filter && !isNaN(filter) ? { overallRating: { $gte: Number(filter) } } : {},
+    // Search criteria
+    {
+      $or: [
+        { overallComment: searchRegex },
+        { 'productReviews.comment': searchRegex },
+        { 'userId.firstName': searchRegex },
+        { 'userId.lastName': searchRegex },
+        { 'orderId.recipient': searchRegex },
+        { 'productData.name': searchRegex }
+      ]
+    }
+  ].filter(condition => Object.keys(condition).length > 0);
+
+  const aggregationPipeline = [
+    // Lookup user data
+    {
+      $lookup: {
+        from: 'users',
+        localField: 'userId',
+        foreignField: '_id',
+        as: 'userId'
+      }
+    },
+    { $unwind: '$userId' },
+    
+    // Lookup order data
+    {
+      $lookup: {
+        from: 'orders',
+        localField: 'orderId',
+        foreignField: '_id',
+        as: 'orderId'
+      }
+    },
+    { $unwind: '$orderId' },
+    
+    // Lookup product data
+    {
+      $lookup: {
+        from: 'products',
+        localField: 'productReviews.productId',
+        foreignField: '_id',
+        as: 'productData'
+      }
+    },
+    
+    // Match search criteria
+    {
+      $match: {
+        $and: matchConditions
+      }
+    },
+    
+    // Add product data back to productReviews
+    {
+      $addFields: {
+        'productReviews': {
+          $map: {
+            input: '$productReviews',
+            as: 'review',
+            in: {
+              $mergeObjects: [
+                '$$review',
+                {
+                  productId: {
+                    $arrayElemAt: [
+                      {
+                        $filter: {
+                          input: '$productData',
+                          cond: { $eq: ['$$this._id', '$$review.productId'] }
+                        }
+                      },
+                      0
+                    ]
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    
+    // Remove temporary productData field
+    { $unset: 'productData' },
+    
+    // Sort
+    { $sort: sortObject },
+    
+    // Facet for pagination and count
+    {
+      $facet: {
+        data: [
+          { $skip: skip },
+          { $limit: limitItems }
+        ],
+        totalCount: [
+          { $count: 'count' }
+        ]
+      }
+    }
+  ];
+  
+  const result = await Review.aggregate(aggregationPipeline);
+  const reviews = result[0].data;
+  const totalReviews = result[0].totalCount[0]?.count || 0;
+
+  return { reviews, totalReviews };
+};
+
+// Helper function for simple query without search
+const performSimpleQuery = async (baseQuery, sortObject, skip, limitItems) => {
+  const reviews = await Review.find(baseQuery)
+    .populate("userId", "firstName lastName email img")
+    .populate("orderId", "recipient address createdAt")
+    .populate("productReviews.productId", "name images type producer price")
+    .sort(sortObject)
+    .skip(skip)
+    .limit(limitItems);
+
+  const totalReviews = await Review.countDocuments(baseQuery);
+
+  return { reviews, totalReviews };
+};
 
 // Get all reviews (for admin)
-const getAllReviews = async (page = 1, limit = 10) => {
+const getAllReviews = async (page = 1, limit = 10, sort = '-createdAt', filter = '', searchQuery = '') => {
   try {
     const currentPage = Number(page) || 1;
     const limitItems = Number(limit) || 10;
     const skip = (currentPage - 1) * limitItems;
 
-    const reviews = await Review.find()
-      .populate("userId", "firstName lastName email avatar") 
-      .populate("orderId", "recipient address createdAt")
-      .populate("productReviews.productId", "name images type producer price")
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitItems);
+    // Build base query and sort object
+    const baseQuery = buildBaseQuery(filter);
+    const sortObject = buildSortObject(sort);
 
-    const totalReviews = await Review.countDocuments();
+    let reviews;
+    let totalReviews;
+
+    // Determine which search strategy to use
+    if (searchQuery && searchQuery.trim()) {
+      // Check if we need complex search (searching in populated fields)
+      const needsComplexSearch = true; // Always use complex search for comprehensive results
+      
+      if (needsComplexSearch) {
+        const result = await performComplexSearch(searchQuery, filter, sortObject, skip, limitItems);
+        reviews = result.reviews;
+        totalReviews = result.totalReviews;
+      } else {
+        const result = await performSimpleSearch(searchQuery, baseQuery, sortObject, skip, limitItems);
+        reviews = result.reviews;
+        totalReviews = result.totalReviews;
+      }
+    } else {
+      // No search query - use simple query
+      const result = await performSimpleQuery(baseQuery, sortObject, skip, limitItems);
+      reviews = result.reviews;
+      totalReviews = result.totalReviews;
+    }
 
     return {
       status: "OK",
