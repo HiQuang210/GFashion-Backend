@@ -217,7 +217,7 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
             price: 1,
             variants: 1,
             sold: 1,
-            rating: "$actualRating", // Use calculated rating from reviews
+            rating: "$actualRating", 
             reviewCount: 1,
             createdAt: 1,
             updatedAt: 1, 
@@ -311,7 +311,7 @@ const getDetailProduct = (id) => {
             price: 1,
             producer: 1,
             variants: 1,
-            rating: "$actualRating", // Use calculated rating from reviews
+            rating: "$actualRating", 
             reviewCount: 1,
             ratingDistribution: 1,
             description: 1,

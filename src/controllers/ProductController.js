@@ -21,7 +21,6 @@ const createProduct = async (req, res) => {
       });
     }
 
-    // Note: Removed rating from here since new products start with 0 rating
     const response = await ProductService.createProduct(
       { name, type, price, variants, description, material, producer },
       req.files

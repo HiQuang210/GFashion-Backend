@@ -34,5 +34,4 @@ productSchema.virtual("firstImage").get(function () {
 });
 
 const Product = mongoose.model("Product", productSchema);
-
 module.exports = Product;

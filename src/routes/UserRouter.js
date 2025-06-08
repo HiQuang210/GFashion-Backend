@@ -34,7 +34,7 @@ router.post(
 router.get("/get-user-cart", authUserMiddleware, userController.getUserCart);
 router.post(
   "/handle-cart",
-  //authUserMiddleware,
+  authUserMiddleware,
   userController.handleCartAction
 );
 
