@@ -130,18 +130,31 @@ const getDetailProduct = async (req, res) => {
 
 const getAllProduct = async (req, res) => {
   try {
-    const { limitItem, page, sort, filter, searchQuery } = req.query;
+    const { 
+      limitItem, 
+      page, 
+      sort, 
+      filter, 
+      searchQuery, 
+      producer, 
+      minPrice, 
+      maxPrice 
+    } = req.query;
     
     const response = await ProductService.getAllProduct(
       Number(limitItem) || 8,
-      Number(page) || 0,
+      Number(page) || 1, 
       sort,
       filter,
-      searchQuery
+      searchQuery,
+      producer,
+      minPrice,
+      maxPrice
     );
     
     return res.status(200).json(response);
   } catch (e) {
+    console.error('getAllProduct controller error:', e);
     return res.status(404).json({
       message: e,
     });
@@ -150,11 +163,22 @@ const getAllProduct = async (req, res) => {
 
 const getTotalPages = async (req, res) => {
   try {
-    const { limitItem, filter } = req.query;
+    const { 
+      limitItem, 
+      filter, 
+      producer, 
+      minPrice, 
+      maxPrice 
+    } = req.query;
+    
     const response = await ProductService.getTotalPages(
       Number(limitItem) || 8,
-      filter
+      filter,
+      producer,
+      minPrice,
+      maxPrice
     );
+    
     return res.status(200).json(response);
   } catch (e) {
     return res.status(404).json({

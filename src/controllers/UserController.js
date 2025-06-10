@@ -27,7 +27,8 @@ const createUser = async (req, res) => {
       password,
       phone,
       firstName,
-      lastName
+      lastName,
+      address: []  
     });
 
     return res.status(response.status === "ERR" ? 400 : 200).json(response);
@@ -367,7 +368,7 @@ const getAllUser = async (req, res) => {
     const currentUserId = req.user?.id;
     
     const response = await UserService.getAllUser(
-      Number(limitUser) || 8,
+      Number(limitUser) || 50,
       Number(page) || 0,
       currentUserId 
     );
@@ -403,7 +404,6 @@ const getDetailUser = async (req, res) => {
 const getUserFavorites = async (req, res) => {
   try {
     const userId = req.user.id;
-    console.log("id", userId);
 
     if (!userId) {
       return res.status(200).json({
@@ -470,7 +470,7 @@ const getUserCart = async (req, res) => {
 const handleCartAction = async (req, res) => {
   try {
     const { action, productId, color, size, quantity } = req.body;
-    const userId = req.user?.id || req.body.userId; // fallback for non-auth testing
+    const userId = req.user?.id || req.body.userId; 
 
     if (!userId || !productId) {
       return res.status(400).json({

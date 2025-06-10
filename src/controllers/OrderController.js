@@ -2,12 +2,12 @@ const OrderService = require("../services/OrderService");
 
 const createOrder = async (req, res) => {
   try {
-    const { delivery, address, payment, recipient } = req.body;
+    const { delivery, address, payment, recipient, phone } = req.body;
 
-    if (!delivery || !address || !payment || !recipient) {
+    if (!delivery || !address || !payment || !recipient || !phone) {
       return res.status(400).json({
         status: "ERROR",
-        message: "Missing required fields: delivery, address, payment, or recipient",
+        message: "Missing required fields: delivery, address, payment, recipient, or phone",
       });
     }
 

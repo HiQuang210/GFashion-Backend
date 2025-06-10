@@ -31,7 +31,7 @@ const uploadSnapshotFromUrl = (imageUrl) => {
 
 const createOrder = (newOrder, userId) => {
   return new Promise(async (resolve, reject) => {
-    const { delivery, address, payment, recipient, note } = newOrder;
+    const { delivery, address, payment, recipient, note, phone } = newOrder;
 
     try {
       const user = await User.findById(userId);
@@ -41,6 +41,10 @@ const createOrder = (newOrder, userId) => {
 
       if (!recipient) {
         return reject({ status: "ERROR", message: "Recipient name is required" });
+      }
+
+      if (!phone) {
+        return reject({ status: "ERROR", message: "Phone number is required" });
       }
 
       const sourceProducts = Array.isArray(newOrder.products) && newOrder.products.length > 0
@@ -100,7 +104,7 @@ const createOrder = (newOrder, userId) => {
             snapshotImage = await uploadSnapshotFromUrl(firstImage);
           } catch (err) {
             console.warn("Failed to snapshot image, fallback to original:", err.message);
-            snapshotImage = firstImage; 
+            snapshotImage = firstImage;
           }
         }
 
@@ -122,6 +126,7 @@ const createOrder = (newOrder, userId) => {
       const createdOrder = await Order.create({
         userId,
         recipient,
+        phone,
         delivery,
         address,
         payment,
@@ -215,6 +220,7 @@ const adminAllOrders = (page = 1, size = 10) => {
           id: order._id,
           userId: order.userId,
           recipient: order.recipient,
+          phone: order.phone, 
           address: order.address,
           delivery: order.delivery,
           payment: order.payment,
@@ -263,7 +269,7 @@ const adminGetOrderDetail = (id) => {
           path: "userId",
           select: "phone email firstName lastName img",
         })
-        .lean(); 
+        .lean();
 
       if (!order) {
         return resolve({
@@ -283,6 +289,7 @@ const adminGetOrderDetail = (id) => {
         id: order._id,
         userId: order.userId?._id || order.userId,
         recipient: order.recipient,
+        phone: order.phone, 
         address: order.address,
         delivery: order.delivery,
         payment: order.payment,

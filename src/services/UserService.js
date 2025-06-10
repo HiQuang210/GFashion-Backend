@@ -10,9 +10,7 @@ const createUser = (newUser) => {
   return new Promise(async (resolve, reject) => {
     const { email, password, phone, firstName, lastName } = newUser;
 
-    const checkUser = await User.findOne({
-      email: email,
-    });
+    const checkUser = await User.findOne({ email: email });
     if (checkUser !== null) {
       return resolve({
         status: "ERR",
@@ -28,6 +26,7 @@ const createUser = (newUser) => {
         phone,
         firstName,
         lastName,
+        address: [],  
       });
 
       const access_token = await generalAccessToken({
@@ -55,7 +54,7 @@ const createUser = (newUser) => {
             phone: createdUser.phone || "NA",
             favorite: createdUser.favorite || [],
             cartSize: createdUser.cart.length || 0,
-          }
+          },
         });
       }
     } catch (e) {
@@ -135,6 +134,7 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
           lastName: checkUser.lastName,
           img: checkUser.img || null,
           phone: checkUser.phone || null,
+          address: checkUser.address || [],  
           favorite: checkUser.favorite || [],
           cartSize: checkUser.cart?.length || 0,
           isAdmin: checkUser.isAdmin,
@@ -505,12 +505,19 @@ const getUserFavorites = (userId) => {
       }
 
       const favoriteItems = user.favorite.map((item) => ({
-        productId: item._id,
+        _id: item._id,
         name: item.name,
         price: item.price,
-        image: item.images[0],
-        color: item.variants[0].color,
-        size: item.variants[0].sizes[0].size,
+        images: item.images, 
+        rating: item.rating || 0,
+        description: item.description || '',
+        type: item.type,
+        producer: item.producer,
+        variants: item.variants,
+        material: item.material || '',
+        sold: item.sold || 0,
+        createdAt: item.createdAt,
+        updatedAt: item.updatedAt
       }));
 
       resolve({
@@ -596,6 +603,32 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
       };
     }
 
+    const product = await Product.findById(productId);
+    if (!product) {
+      return {
+        status: "ERR",
+        message: "Product not found",
+      };
+    }
+
+    const variant = product.variants.find((v) => v.color === color);
+    if (!variant) {
+      return {
+        status: "ERR",
+        message: "Variant color not found",
+      };
+    }
+
+    const sizeVariant = variant.sizes.find((s) => s.size === size);
+    if (!sizeVariant) {
+      return {
+        status: "ERR",
+        message: "Size not found in variant",
+      };
+    }
+
+    const availableStock = sizeVariant.stock;
+
     const cartItem = user.cart.find(
       (item) =>
         item.product.toString() === productId.toString() &&
@@ -606,8 +639,21 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
     switch (action) {
       case "add":
         if (cartItem) {
-          cartItem.quantity += quantity;
+          const newQuantity = cartItem.quantity + quantity;
+          if (newQuantity > availableStock) {
+            return {
+              status: "ERR",
+              message: `Only ${availableStock} items in stock`,
+            };
+          }
+          cartItem.quantity = newQuantity;
         } else {
+          if (quantity > availableStock) {
+            return {
+              status: "ERR",
+              message: `Only ${availableStock} items in stock`,
+            };
+          }
           user.cart.push({ product: productId, color, size, quantity });
         }
         break;
@@ -636,6 +682,12 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
             message: "Product not found in cart",
           };
         }
+        if (quantity > availableStock) {
+          return {
+            status: "ERR",
+            message: `Only ${availableStock} items in stock`,
+          };
+        }
         cartItem.quantity = quantity;
         break;
 
@@ -646,7 +698,25 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
         };
     }
 
+    for (const item of user.cart) {
+      const itemProduct = await Product.findById(item.product);
+      if (!itemProduct) continue;
+
+      const itemVariant = itemProduct.variants.find((v) => v.color === item.color);
+      if (!itemVariant) continue;
+
+      const itemSize = itemVariant.sizes.find((s) => s.size === item.size);
+      if (!itemSize) continue;
+
+      if (item.quantity > itemSize.stock) {
+        item.quantity = itemSize.stock;
+      }
+    }
+
+    user.cart = user.cart.filter((item) => item.quantity > 0);
+
     await user.save();
+
     return {
       status: "OK",
       message: `${action} cart success`,
@@ -744,7 +814,7 @@ const getDashboard = () => {
         id: order._id,
         customerPhone: order.userId.phone,
         customerEmail: order.userId.email,
-        total: order.total + (order.delivery === "standard" ? 30000 : 50000),
+        total: order.total + (order.delivery === "standard" ? 20000 : 50000),
         date: order.createdAt,
         status: order.status,
       }));

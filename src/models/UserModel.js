@@ -6,7 +6,7 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     firstName: { type: String, required: true },
     lastName: { type: String, required: true },
-    img: { type: String, default: null, required: false }, 
+    img: { type: String, default: null, required: false },
     isActive: { type: Boolean, default: true },
     isAdmin: { type: Boolean, default: false },
     phone: { type: String, required: true },
@@ -31,6 +31,13 @@ const userSchema = new mongoose.Schema(
       required: false,
       default: undefined 
     },
+    address: [
+      {
+        recipient: { type: String, required: true },
+        phone: { type: String, required: true },
+        location: { type: String, required: true }, 
+      },
+    ],
   },
   {
     timestamps: true,

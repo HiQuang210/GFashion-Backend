@@ -3,7 +3,6 @@ const Product = require("../models/ProductModel");
 const Review = require("../models/ReviewModel");
 const cloudinary = require("../cloudinary");
 const User = require('../models/UserModel'); 
-const Order = require('../models/OrderModel'); 
 
 const uploadProductImageToCloudinary = (file) => {
   return new Promise((resolve, reject) => {
@@ -121,110 +120,124 @@ const createProduct = (newProduct, files) => {
   });
 };
 
-const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
+const buildFilter = (filter, producer, searchQuery, minPrice, maxPrice) => {
+  const objectFilter = {};
+
+  if (filter && filter !== 'all') {
+    objectFilter.type = { $regex: new RegExp(`^${filter}`, 'i') };
+  }
+  if (producer && producer !== 'all') {
+    objectFilter.producer = { $regex: new RegExp(`^${producer.trim()}$`, 'i') };
+  }
+  if (searchQuery) {
+    objectFilter.name = { $regex: searchQuery, $options: "i" };
+  }
+  if (minPrice || maxPrice) {
+    objectFilter.price = {};
+    if (minPrice !== undefined && minPrice !== null && minPrice !== '') {
+      const minPriceNum = Number(minPrice);
+      if (!isNaN(minPriceNum) && minPriceNum >= 0) {
+        objectFilter.price.$gte = minPriceNum;
+      }
+    }
+    if (maxPrice !== undefined && maxPrice !== null && maxPrice !== '') {
+      const maxPriceNum = Number(maxPrice);
+      if (!isNaN(maxPriceNum) && maxPriceNum >= 0) {
+        objectFilter.price.$lte = maxPriceNum;
+      }
+    }
+    if (Object.keys(objectFilter.price).length === 0) {
+      delete objectFilter.price;
+    }
+  }
+
+  return objectFilter;
+};
+
+const buildSort = (sort) => {
+  const sortMap = {
+    "newest": { updatedAt: -1 },
+    "best-seller": { sold: -1 },
+    "price-asc": { price: 1 },
+    "price-low": { price: 1 },
+    "price-desc": { price: -1 },
+    "price-high": { price: -1 }
+  };
+  
+  return sortMap[sort] || { createdAt: -1 };
+};
+
+const buildAggregationPipeline = (objectFilter, sort, currentPage, limit) => {
+  const pipeline = [
+    { $match: objectFilter },
+    {
+      $lookup: {
+        from: "reviews",
+        let: { productId: "$_id" },
+        pipeline: [
+          { $unwind: "$productReviews" },
+          { $match: { $expr: { $eq: ["$productReviews.productId", "$$productId"] } } },
+          {
+            $group: {
+              _id: "$productReviews.productId",
+              averageRating: { $avg: "$productReviews.rating" },
+              reviewCount: { $sum: 1 }
+            }
+          }
+        ],
+        as: "reviewData"
+      }
+    },
+    {
+      $addFields: {
+        actualRating: {
+          $cond: {
+            if: { $gt: [{ $size: "$reviewData" }, 0] },
+            then: { $round: [{ $arrayElemAt: ["$reviewData.averageRating", 0] }, 1] },
+            else: 0
+          }
+        },
+        reviewCount: {
+          $cond: {
+            if: { $gt: [{ $size: "$reviewData" }, 0] },
+            then: { $arrayElemAt: ["$reviewData.reviewCount", 0] },
+            else: 0
+          }
+        }
+      }
+    }
+  ];
+
+  if (sort === "highest-rating") {
+    pipeline.push({ $sort: { actualRating: -1, createdAt: -1 } });
+  } else {
+    pipeline.push({ $sort: buildSort(sort) });
+  }
+
+  pipeline.push(
+    { $skip: (currentPage - 1) * limit },
+    { $limit: limit },
+    {
+      $project: {
+        _id: 1, name: 1, images: 1, type: 1, producer: 1, price: 1,
+        variants: 1, sold: 1, rating: "$actualRating", reviewCount: 1,
+        createdAt: 1, updatedAt: 1
+      }
+    }
+  );
+
+  return pipeline;
+};
+
+const getAllProduct = (limitItem, page, sort, filter, searchQuery, producer, minPrice, maxPrice) => {
   return new Promise(async (resolve, reject) => {
     try {
       const limit = Number(limitItem) || 10;
       const currentPage = Number(page) || 1;
-
-      const objectSort = {};
-      const objectFilter = {};
-
-      if (filter) {
-        objectFilter.type = filter;
-      }
-
-      if (searchQuery) {
-        objectFilter.name = { $regex: searchQuery, $options: "i" };
-      }
-
-      if (sort) {
-        switch (sort) {
-          case "highest-rating":
-            objectSort.rating = -1;
-            break;
-          case "newest":
-            objectSort.updatedAt = -1;
-            break;
-          case "best-seller":
-            objectSort.sold = -1;
-            break;
-          case "price-asc":
-            objectSort.price = 1;
-            break;
-          case "price-desc":
-            objectSort.price = -1;
-            break;
-          default:
-            objectSort.createdAt = -1;
-        }
-      } else {
-        objectSort.createdAt = -1;
-      }
-
+      
+      const objectFilter = buildFilter(filter, producer, searchQuery, minPrice, maxPrice);
       const totalProduct = await Product.countDocuments(objectFilter);
-
-      const pipeline = [
-        { $match: objectFilter },
-        {
-          $lookup: {
-            from: "reviews",
-            let: { productId: "$_id" },
-            pipeline: [
-              { $unwind: "$productReviews" },
-              { $match: { $expr: { $eq: ["$productReviews.productId", "$$productId"] } } },
-              {
-                $group: {
-                  _id: "$productReviews.productId",
-                  averageRating: { $avg: "$productReviews.rating" },
-                  reviewCount: { $sum: 1 }
-                }
-              }
-            ],
-            as: "reviewData"
-          }
-        },
-        {
-          $addFields: {
-            actualRating: {
-              $cond: {
-                if: { $gt: [{ $size: "$reviewData" }, 0] },
-                then: { $round: [{ $arrayElemAt: ["$reviewData.averageRating", 0] }, 1] },
-                else: 0
-              }
-            },
-            reviewCount: {
-              $cond: {
-                if: { $gt: [{ $size: "$reviewData" }, 0] },
-                then: { $arrayElemAt: ["$reviewData.reviewCount", 0] },
-                else: 0
-              }
-            }
-          }
-        }
-      ];
-
-      pipeline.push({ $sort: objectSort });
-
-      pipeline.push(
-        { $skip: (currentPage - 1) * limit },
-        { $limit: limit },
-        {
-          $project: {
-            _id: 1,
-            name: 1,
-            images: 1,
-            price: 1,
-            variants: 1,
-            sold: 1,
-            rating: "$actualRating", 
-            reviewCount: 1,
-            createdAt: 1,
-            updatedAt: 1, 
-          },
-        }
-      );
-
+      const pipeline = buildAggregationPipeline(objectFilter, sort, currentPage, limit);
       const allProduct = await Product.aggregate(pipeline);
 
       resolve({
@@ -236,6 +249,25 @@ const getAllProduct = (limitItem, page, sort, filter, searchQuery) => {
         totalPage: Math.ceil(totalProduct / limit),
       });
     } catch (e) {
+      console.error('getAllProduct error:', e);
+      reject(e);
+    }
+  });
+};
+
+const getTotalPages = (limitItem, filter, producer, minPrice, maxPrice) => {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const objectFilter = buildFilter(filter, producer, undefined, minPrice, maxPrice);
+      const totalProduct = await Product.countDocuments(objectFilter);
+
+      resolve({
+        status: "OK",
+        message: "Get total pages success",
+        totalPage: Math.ceil(totalProduct / Number(limitItem)),
+      });
+    } catch (e) {
+      console.error('getTotalPages error:', e);
       reject(e);
     }
   });
@@ -422,28 +454,6 @@ const updateProduct = (id, data, files) => {
   });
 };
 
-const getTotalPages = (limitItem, filter) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const objectFilter = {};
-
-      if (filter) {
-        objectFilter.type = filter;
-      }
-
-      const totalProduct = await Product.find(objectFilter).countDocuments();
-
-      resolve({
-        status: "OK",
-        message: "Get total pages success",
-        totalPage: Math.ceil(totalProduct / Number(limitItem)),
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
 const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
   return new Promise(async (resolve, reject) => {
     try {
@@ -530,7 +540,6 @@ const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
       ];
 
       if (Object.keys(objectSort).length > 0) {
-        // Replace rating sort with actualRating
         if (objectSort.rating) {
           delete objectSort.rating;
           objectSort.actualRating = -1;
@@ -552,7 +561,7 @@ const adminAllProducts = (limitItem, page, sort, filter, searchQuery) => {
             name: 1,
             type: 1,
             price: 1,
-            rating: "$actualRating", // Use calculated rating
+            rating: "$actualRating", 
             reviewCount: 1,
             description: 1,
             material: 1,
