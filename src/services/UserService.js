@@ -1,6 +1,7 @@
 const User = require("../models/UserModel");
 const Product = require("../models/ProductModel");
 const Order = require("../models/OrderModel");
+const Review = require("../models/ReviewModel");
 const bcrypt = require("bcrypt");
 const cloudinary = require("../cloudinary");
 const nodemailer = require("nodemailer");
@@ -26,7 +27,7 @@ const createUser = (newUser) => {
         phone,
         firstName,
         lastName,
-        address: [],  
+        address: [],
       });
 
       const access_token = await generalAccessToken({
@@ -66,37 +67,44 @@ const createUser = (newUser) => {
 const loginUser = ({ email, password, requireAdmin = false }) => {
   return new Promise(async (resolve, reject) => {
     try {
-      console.log(`Login attempt for email: ${email}, requireAdmin: ${requireAdmin}`);
-      
-      const checkUser = await User.findOne({ email }).lean(); 
-      console.log(`User found:`, checkUser ? { 
-        id: checkUser._id, 
-        email: checkUser.email, 
-        isAdmin: checkUser.isAdmin,
-        isActive: checkUser.isActive 
-      } : null);
+      console.log(
+        `Login attempt for email: ${email}, requireAdmin: ${requireAdmin}`
+      );
+
+      const checkUser = await User.findOne({ email }).lean();
+      console.log(
+        `User found:`,
+        checkUser
+          ? {
+              id: checkUser._id,
+              email: checkUser.email,
+              isAdmin: checkUser.isAdmin,
+              isActive: checkUser.isActive,
+            }
+          : null
+      );
 
       if (!checkUser) {
         return reject({
           status: 404,
-          message: "Incorrect email or password"
+          message: "Incorrect email or password",
         });
       }
 
       if (!checkUser.isActive) {
-        console.log('Account deactivated');
+        console.log("Account deactivated");
         return reject({
           status: 401,
-          message: "Account is deactivated, please contact support"
+          message: "Account is deactivated, please contact support",
         });
       }
 
       const comparePassword = bcrypt.compareSync(password, checkUser.password);
       if (!comparePassword) {
-        console.log('Password incorrect');
+        console.log("Password incorrect");
         return reject({
           status: 401,
-          message: "Incorrect email or password"
+          message: "Incorrect email or password",
         });
       }
 
@@ -104,11 +112,11 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
         console.log(`Admin access denied. User isAdmin: ${checkUser.isAdmin}`);
         return reject({
           status: 403,
-          message: "Admin privilege is required"
+          message: "Admin privilege is required",
         });
       }
 
-      console.log('Password verified, generating tokens...');
+      console.log("Password verified, generating tokens...");
 
       const access_token = await generalAccessToken({
         id: checkUser._id,
@@ -120,7 +128,7 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
         isAdmin: checkUser.isAdmin,
       });
 
-      console.log('Login successful');
+      console.log("Login successful");
 
       resolve({
         status: "OK",
@@ -134,24 +142,24 @@ const loginUser = ({ email, password, requireAdmin = false }) => {
           lastName: checkUser.lastName,
           img: checkUser.img || null,
           phone: checkUser.phone || null,
-          address: checkUser.address || [],  
+          address: checkUser.address || [],
           favorite: checkUser.favorite || [],
           cartSize: checkUser.cart?.length || 0,
           isAdmin: checkUser.isAdmin,
           isActive: checkUser.isActive,
-          totalSpent: checkUser.totalSpent || 0,  
-          createdAt: checkUser.createdAt, 
+          totalSpent: checkUser.totalSpent || 0,
+          createdAt: checkUser.createdAt,
         },
       });
     } catch (e) {
-      console.error('Login service error:', e);
+      console.error("Login service error:", e);
       reject(e);
     }
   });
 };
 
 const adminLoginUser = ({ email, password }) => {
-  console.log('Admin login service called');
+  console.log("Admin login service called");
   return loginUser({ email, password, requireAdmin: true });
 };
 
@@ -168,7 +176,8 @@ const uploadImageToCloudinary = (file) => {
         transformation: [{ width: 500, height: 500, crop: "limit" }],
       },
       (err, result) => {
-        if (err) return reject(new Error("Cloudinary upload failed: " + err.message));
+        if (err)
+          return reject(new Error("Cloudinary upload failed: " + err.message));
         resolve(result.secure_url);
       }
     );
@@ -182,10 +191,10 @@ const deleteImageFromCloudinary = (imageUrl) => {
     if (!imageUrl) return resolve();
 
     const publicId = imageUrl
-      .split('/')
+      .split("/")
       .slice(-2)
-      .join('/')
-      .replace(/\.[^/.]+$/, ""); 
+      .join("/")
+      .replace(/\.[^/.]+$/, "");
 
     cloudinary.uploader.destroy(publicId, (err, result) => {
       if (err) return reject(err);
@@ -274,7 +283,7 @@ const requestPasswordReset = async (email) => {
     }
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
-    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000); 
+    const resetCodeExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     user.resetPasswordCode = resetCode;
     user.resetPasswordExpiry = resetCodeExpiry;
@@ -352,7 +361,7 @@ const verifyResetCode = async (email, code) => {
       user.resetPasswordCode = undefined;
       user.resetPasswordExpiry = undefined;
       await user.save();
-      
+
       return {
         status: "ERR",
         message: "Verification code has expired. Please request a new one.",
@@ -443,15 +452,15 @@ const getAllUser = (limitUser, page, excludeUserId = null) => {
   return new Promise(async (resolve, reject) => {
     try {
       const query = excludeUserId ? { _id: { $ne: excludeUserId } } : {};
-      
+
       const totalUser = await User.countDocuments(query);
       // console.log("limitUser", limitUser);
       // console.log("excludeUserId", excludeUserId);
-      
+
       const allUser = await User.find(query)
         .limit(limitUser)
         .skip(page * limitUser);
-        
+
       resolve({
         status: "OK",
         message: "Get all user success",
@@ -471,7 +480,7 @@ const getDetailUser = (id) => {
     try {
       const user = await User.findOne({
         _id: id,
-      });
+      }).lean();
       if (user === null) {
         resolve({
           status: "OK",
@@ -479,10 +488,19 @@ const getDetailUser = (id) => {
         });
       }
 
+      const orderCount = await Order.countDocuments({ userId: id });
+      const reviewCount = await Review.countDocuments({ userId: id });
+
+      const userWithStats = {
+        ...user,
+        orderCount: orderCount,
+        reviewCount: reviewCount,
+      };
+
       resolve({
         status: "OK",
         message: "Get Detail user success",
-        data: user,
+        data: userWithStats,
       });
     } catch (e) {
       reject(e);
@@ -508,16 +526,16 @@ const getUserFavorites = (userId) => {
         _id: item._id,
         name: item.name,
         price: item.price,
-        images: item.images, 
+        images: item.images,
         rating: item.rating || 0,
-        description: item.description || '',
+        description: item.description || "",
         type: item.type,
         producer: item.producer,
         variants: item.variants,
-        material: item.material || '',
+        material: item.material || "",
         sold: item.sold || 0,
         createdAt: item.createdAt,
-        updatedAt: item.updatedAt
+        updatedAt: item.updatedAt,
       }));
 
       resolve({
@@ -593,7 +611,14 @@ const handleFavoriteAction = (action, userId, productId) => {
   });
 };
 
-const handleCartAction = async (action, userId, productId, color, size, quantity) => {
+const handleCartAction = async (
+  action,
+  userId,
+  productId,
+  color,
+  size,
+  quantity
+) => {
   try {
     const user = await User.findById(userId);
     if (!user) {
@@ -702,7 +727,9 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
       const itemProduct = await Product.findById(item.product);
       if (!itemProduct) continue;
 
-      const itemVariant = itemProduct.variants.find((v) => v.color === item.color);
+      const itemVariant = itemProduct.variants.find(
+        (v) => v.color === item.color
+      );
       if (!itemVariant) continue;
 
       const itemSize = itemVariant.sizes.find((s) => s.size === item.size);
