@@ -471,7 +471,7 @@ const getDetailUser = (id) => {
     try {
       const user = await User.findOne({
         _id: id,
-      });
+      }).lean();
       if (user === null) {
         resolve({
           status: "OK",
@@ -479,10 +479,15 @@ const getDetailUser = (id) => {
         });
       }
 
+      const userWithStats = {
+        ...user,
+        orderCount: orderCount,
+      };
+
       resolve({
         status: "OK",
         message: "Get Detail user success",
-        data: user,
+        data: userWithStats,
       });
     } catch (e) {
       reject(e);
