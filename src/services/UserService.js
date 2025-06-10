@@ -471,13 +471,18 @@ const getDetailUser = (id) => {
     try {
       const user = await User.findOne({
         _id: id,
-      });
+      }).lean();
       if (user === null) {
         resolve({
           status: "OK",
           message: "The user is not defined!",
         });
       }
+
+      const userWithStats = {
+        ...user,
+        orderCount: orderCount,
+      };
 
       resolve({
         status: "OK",
