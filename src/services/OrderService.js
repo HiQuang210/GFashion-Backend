@@ -179,10 +179,10 @@ const getAllOrders = (userId) => {
 const getDetailOrder = (id) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const Order = await Order.findOne({
+      const order = await Order.findOne({  
         _id: id,
       });
-      if (Order === null) {
+      if (order === null) { 
         resolve({
           status: "OK",
           message: "The Order is not defined!",
@@ -191,7 +191,7 @@ const getDetailOrder = (id) => {
       resolve({
         status: "OK",
         message: "Get Detail Order success",
-        data: Order,
+        data: order,  
       });
     } catch (e) {
       reject(e);
@@ -408,69 +408,64 @@ const updateOrderStatus = (id, status) => {
   });
 };
 
-const updateOrder = (id, data) => {
+const cancelOrder = (userId, orderId) => {
   return new Promise(async (resolve, reject) => {
     try {
-      const checkOrder = await Order.findOne({
-        _id: id,
-      });
-      if (checkOrder === null) {
-        resolve({
-          status: "OK",
-          message: "The Order is not defined!",
-        });
-      }
-      const updatedOrder = await Order.findByIdAndUpdate(id, data, {
-        new: true,
-      });
-      resolve({
-        status: "OK",
-        message: "Success",
-        data: updatedOrder,
-      });
-    } catch (e) {
-      reject(e);
-    }
-  });
-};
-
-const deleteOrder = (userId, id) => {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const checkOrder = await Order.findOne({
-        _id: id,
-        userId: userId,
-      });
-      if (checkOrder === null) {
+      const order = await Order.findOne({ _id: orderId, userId });
+      if (!order) {
         return resolve({
-          status: "OK",
-          message: "The Order is not defined or you are not authorized!",
+          status: "ERR",
+          message: "Order not found or unauthorized access!",
         });
       }
 
-      if (checkOrder.status === "pending") {
-        await Order.findByIdAndDelete(id);
-      } else {
+      if (order.status !== "pending") {
         return resolve({
-          status: "ERROR",
-          message: "The Order is not allowed to delete!",
+          status: "ERR",
+          message: "Only orders with status 'pending' can be cancelled!",
         });
       }
+
+      for (const item of order.products) {
+        const product = await Product.findById(item.productId);
+        if (!product) continue;
+
+        const variant = product.variants.find(v => v.color === item.color);
+        if (!variant) continue;
+
+        const sizeObj = variant.sizes.find(s => s.size === item.size);
+        if (!sizeObj) continue;
+
+        sizeObj.stock += item.quantity;
+        product.sold = Math.max((product.sold || 0) - item.quantity, 0);
+
+        await product.save();
+      }
+
+      order.status = "cancelled";
+      await order.save();
 
       resolve({
         status: "OK",
-        message: "Delete Order success",
+        message: "Order cancelled successfully",
+        data: {
+          id: order._id,
+          status: order.status,
+        },
       });
     } catch (e) {
-      reject(e);
+      console.error("cancelOrder error:", e);
+      reject({
+        status: "ERR",
+        message: e.message || "Failed to cancel order",
+      });
     }
   });
 };
 
 module.exports = {
   createOrder,
-  updateOrder,
-  deleteOrder,
+  cancelOrder,
   getAllOrders,
   getDetailOrder,
   adminAllOrders,

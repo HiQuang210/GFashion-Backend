@@ -114,48 +114,31 @@ const updateOrderStatus = async (req, res) => {
   }
 };
 
-const updateOrder = async (req, res) => {
+const cancelOrder = async (req, res) => {
   try {
-    const OrderId = req.params.id;
-    const data = req.body;
-    if (!OrderId) {
-      return res.status(200).json({
-        status: "ERR",
-        message: "Order ID is required",
-      });
-    }
-    const response = await OrderService.updateOrder(OrderId, data);
-    return res.status(200).json(response);
-  } catch (e) {
-    return res.status(404).json({
-      message: "Error update Order",
-      error: e.message,
-    });
-  }
-};
+    const orderId = req.params.id;
 
-const deleteOrder = async (req, res) => {
-  try {
-    const OrderId = req.params.id;
-    if (!OrderId) {
-      return res.status(200).json({
+    if (!orderId) {
+      return res.status(400).json({
         status: "ERR",
         message: "Order ID is required",
       });
     }
-    const response = await OrderService.deleteOrder(req.user.id, OrderId);
+
+    const response = await OrderService.cancelOrder(req.user.id, orderId);
     return res.status(200).json(response);
   } catch (e) {
-    return res.status(404).json({
-      message: e,
+    return res.status(500).json({
+      status: "ERR",
+      message: "Error cancelling order",
+      error: e.message,
     });
   }
 };
 
 module.exports = {
   createOrder,
-  updateOrder,
-  deleteOrder,
+  cancelOrder,
   getDetailOrder,
   getAllOrders,
   adminAllOrders,

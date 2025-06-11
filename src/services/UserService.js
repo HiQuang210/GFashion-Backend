@@ -1,6 +1,7 @@
 const User = require("../models/UserModel");
 const Product = require("../models/ProductModel");
 const Order = require("../models/OrderModel");
+const Review = require("../models/ReviewModel");
 const bcrypt = require("bcrypt");
 const cloudinary = require("../cloudinary");
 const nodemailer = require("nodemailer");
@@ -471,7 +472,7 @@ const getDetailUser = (id) => {
     try {
       const user = await User.findOne({
         _id: id,
-      });
+      }).lean();
       if (user === null) {
         resolve({
           status: "OK",
@@ -479,10 +480,20 @@ const getDetailUser = (id) => {
         });
       }
 
+      const orderCount = await Order.countDocuments({ userId: id });
+      const reviewCount = await Review.countDocuments({ userId: id });
+
+      const userWithStats = {
+        ...user,
+        orderCount: orderCount,
+        reviewCount: reviewCount,
+      };
+
       resolve({
         status: "OK",
         message: "Get Detail user success",
         data: user,
+        data: userWithStats,
       });
     } catch (e) {
       reject(e);
@@ -698,29 +709,65 @@ const handleCartAction = async (action, userId, productId, color, size, quantity
         };
     }
 
-    for (const item of user.cart) {
+    const cartItemsToRemove = [];
+    for (let i = 0; i < user.cart.length; i++) {
+      const item = user.cart[i];
       const itemProduct = await Product.findById(item.product);
-      if (!itemProduct) continue;
+      if (!itemProduct) {
+        cartItemsToRemove.push(i);
+        continue;
+      }
 
       const itemVariant = itemProduct.variants.find((v) => v.color === item.color);
-      if (!itemVariant) continue;
+      if (!itemVariant) {
+        cartItemsToRemove.push(i);
+        continue;
+      }
 
       const itemSize = itemVariant.sizes.find((s) => s.size === item.size);
-      if (!itemSize) continue;
+      if (!itemSize) {
+        cartItemsToRemove.push(i);
+        continue;
+      }
+
+      if (itemSize.stock === 0) {
+        cartItemsToRemove.push(i);
+        continue;
+      }
 
       if (item.quantity > itemSize.stock) {
         item.quantity = itemSize.stock;
       }
     }
 
+    for (let i = cartItemsToRemove.length - 1; i >= 0; i--) {
+      user.cart.splice(cartItemsToRemove[i], 1);
+    }
+
     user.cart = user.cart.filter((item) => item.quantity > 0);
 
     await user.save();
 
+
+    const updatedUser = await User.findById(userId).populate({
+      path: "cart.product",
+      select: "price name images variants", 
+    });
+
+    const cartItems = updatedUser.cart.map((item) => {
+      return {
+        _id: item._id, 
+        product: item.product,
+        color: item.color,
+        size: item.size,
+        quantity: item.quantity,
+      };
+    });
+
     return {
       status: "OK",
       message: `${action} cart success`,
-      cart: user.cart,
+      cart: cartItems, 
     };
   } catch (error) {
     return {
@@ -737,7 +784,7 @@ const getUserCart = (userId) => {
         _id: userId,
       }).populate({
         path: "cart.product",
-        select: "price name images",
+        select: "price name images variants", 
       });
 
       if (user === null) {
@@ -749,6 +796,7 @@ const getUserCart = (userId) => {
 
       const cartItems = user.cart.map((item) => {
         return {
+          _id: item._id, 
           product: item.product,
           color: item.color,
           size: item.size,
