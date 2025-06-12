@@ -76,7 +76,7 @@ Before running this project, make sure you have:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/GFashion-Backend.git
+   git clone https://github.com/your-username/-Backend.git
    cd GFashion-Backend
    ```
 
@@ -102,7 +102,7 @@ Before running this project, make sure you have:
    # Database Configuration
    MONGODB_URI=mongodb://localhost:27017/gfashion
    # or for MongoDB Atlas:
-   # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/gfashion
+   # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net
    
    # JWT Configuration
    JWT_SECRET=your_jwt_secret_key_here
