@@ -76,7 +76,7 @@ Before running this project, make sure you have:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/your-username/-Backend.git
+   git clone https://github.com/HiQuang210/GFashion-Backend.git
    cd GFashion-Backend
    ```
 
@@ -100,7 +100,7 @@ Before running this project, make sure you have:
    NODE_ENV=development
    
    # Database Configuration
-   MONGODB_URI=mongodb://localhost:27017/gfashion
+   MONGODB_URI=mongodb://localhost:27017/GFashion
    # or for MongoDB Atlas:
    # MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net
    
